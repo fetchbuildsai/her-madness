@@ -1,0 +1,182 @@
+// 2026 NCAA Women's Basketball Tournament — Full 68-team bracket
+// Selection Sunday: March 15, 2026
+// First Four: March 18, 2026
+// First Round: March 20-21, 2026
+
+export type Region = 'UConn' | 'UCLA' | 'Texas' | 'South Carolina'
+
+export interface Team {
+  id: number
+  name: string
+  seed: number
+  region: Region
+  abbreviation: string
+  isFirstFour?: boolean
+}
+
+export interface Matchup {
+  id: string           // e.g. "UConn_R1_G1"
+  region: Region
+  round: number        // 1 = First Round, 2 = Second Round, etc.
+  topTeamId: number
+  bottomTeamId: number
+  topSlot: string      // slot key for picks
+  bottomSlot: string
+}
+
+// ============================================================
+// TEAMS — 2026 NCAA Women's Tournament (68 teams)
+// First Four: Nebraska/Richmond, Missouri State/SFA, Southern/Samford, Virginia/Arizona State
+// ============================================================
+export const TEAMS: Team[] = [
+  // UConn Region
+  { id: 1,  name: 'UConn',            seed: 1,  region: 'UConn',          abbreviation: 'UCONN' },
+  { id: 2,  name: 'UT San Antonio',   seed: 16, region: 'UConn',          abbreviation: 'UTSA' },
+  { id: 3,  name: 'Iowa State',       seed: 8,  region: 'UConn',          abbreviation: 'IAST' },
+  { id: 4,  name: 'Syracuse',         seed: 9,  region: 'UConn',          abbreviation: 'SYR' },
+  { id: 5,  name: 'Maryland',         seed: 5,  region: 'UConn',          abbreviation: 'MD' },
+  { id: 6,  name: 'Murray State',     seed: 12, region: 'UConn',          abbreviation: 'MUR' },
+  { id: 7,  name: 'North Carolina',   seed: 4,  region: 'UConn',          abbreviation: 'UNC' },
+  { id: 8,  name: 'Western Illinois', seed: 13, region: 'UConn',          abbreviation: 'WIU' },
+  { id: 9,  name: 'Notre Dame',       seed: 6,  region: 'UConn',          abbreviation: 'ND' },
+  { id: 10, name: 'Fairfield',        seed: 11, region: 'UConn',          abbreviation: 'FAIR' },
+  { id: 11, name: 'Ohio State',       seed: 3,  region: 'UConn',          abbreviation: 'OSU' },
+  { id: 12, name: 'Howard',           seed: 14, region: 'UConn',          abbreviation: 'HOW' },
+  { id: 13, name: 'Illinois',         seed: 7,  region: 'UConn',          abbreviation: 'ILL' },
+  { id: 14, name: 'Colorado',         seed: 10, region: 'UConn',          abbreviation: 'COL' },
+  { id: 15, name: 'Vanderbilt',       seed: 2,  region: 'UConn',          abbreviation: 'VAN' },
+  { id: 16, name: 'High Point',       seed: 15, region: 'UConn',          abbreviation: 'HPU' },
+
+  // UCLA Region
+  { id: 17, name: 'UCLA',             seed: 1,  region: 'UCLA',           abbreviation: 'UCLA' },
+  { id: 18, name: 'Cal Baptist',      seed: 16, region: 'UCLA',           abbreviation: 'CBU' },
+  { id: 19, name: 'Oklahoma State',   seed: 8,  region: 'UCLA',           abbreviation: 'OKST' },
+  { id: 20, name: 'Princeton',        seed: 9,  region: 'UCLA',           abbreviation: 'PRIN' },
+  { id: 21, name: 'Ole Miss',         seed: 5,  region: 'UCLA',           abbreviation: 'MISS' },
+  { id: 22, name: 'Gonzaga',          seed: 12, region: 'UCLA',           abbreviation: 'GONZ' },
+  { id: 23, name: 'Minnesota',        seed: 4,  region: 'UCLA',           abbreviation: 'MINN' },
+  { id: 24, name: 'Green Bay',        seed: 13, region: 'UCLA',           abbreviation: 'GRBY' },
+  { id: 25, name: 'Baylor',           seed: 6,  region: 'UCLA',           abbreviation: 'BAY' },
+  { id: 26, name: 'Nebraska',         seed: 11, region: 'UCLA',           abbreviation: 'NEB',  isFirstFour: true },
+  { id: 27, name: 'Richmond',         seed: 11, region: 'UCLA',           abbreviation: 'RICH', isFirstFour: true },
+  { id: 28, name: 'Duke',             seed: 3,  region: 'UCLA',           abbreviation: 'DUKE' },
+  { id: 29, name: 'Charleston',       seed: 14, region: 'UCLA',           abbreviation: 'CHA' },
+  { id: 30, name: 'Texas Tech',       seed: 7,  region: 'UCLA',           abbreviation: 'TTU' },
+  { id: 31, name: 'Villanova',        seed: 10, region: 'UCLA',           abbreviation: 'NOVA' },
+  { id: 32, name: 'LSU',              seed: 2,  region: 'UCLA',           abbreviation: 'LSU' },
+  { id: 33, name: 'Jacksonville',     seed: 15, region: 'UCLA',           abbreviation: 'JAX' },
+
+  // Texas Region
+  { id: 34, name: 'Texas',            seed: 1,  region: 'Texas',          abbreviation: 'TEX' },
+  { id: 35, name: 'Missouri State',   seed: 16, region: 'Texas',          abbreviation: 'MST',  isFirstFour: true },
+  { id: 36, name: 'Stephen F. Austin',seed: 16, region: 'Texas',          abbreviation: 'SFA',  isFirstFour: true },
+  { id: 37, name: 'Oregon',           seed: 8,  region: 'Texas',          abbreviation: 'ORE' },
+  { id: 38, name: 'Virginia Tech',    seed: 9,  region: 'Texas',          abbreviation: 'VT' },
+  { id: 39, name: 'Kentucky',         seed: 5,  region: 'Texas',          abbreviation: 'UK' },
+  { id: 40, name: 'James Madison',    seed: 12, region: 'Texas',          abbreviation: 'JMU' },
+  { id: 41, name: 'West Virginia',    seed: 4,  region: 'Texas',          abbreviation: 'WVU' },
+  { id: 42, name: 'Miami (OH)',        seed: 13, region: 'Texas',          abbreviation: 'MIO' },
+  { id: 43, name: 'Alabama',          seed: 6,  region: 'Texas',          abbreviation: 'ALA' },
+  { id: 44, name: 'Rhode Island',     seed: 11, region: 'Texas',          abbreviation: 'URI' },
+  { id: 45, name: 'Louisville',       seed: 3,  region: 'Texas',          abbreviation: 'LOU' },
+  { id: 46, name: 'Vermont',          seed: 14, region: 'Texas',          abbreviation: 'UVM' },
+  { id: 47, name: 'NC State',         seed: 7,  region: 'Texas',          abbreviation: 'NCST' },
+  { id: 48, name: 'Tennessee',        seed: 10, region: 'Texas',          abbreviation: 'TENN' },
+  { id: 49, name: 'Michigan',         seed: 2,  region: 'Texas',          abbreviation: 'MICH' },
+  { id: 50, name: 'Holy Cross',       seed: 15, region: 'Texas',          abbreviation: 'HC' },
+
+  // South Carolina Region
+  { id: 51, name: 'South Carolina',   seed: 1,  region: 'South Carolina', abbreviation: 'SC' },
+  { id: 52, name: 'Southern',         seed: 16, region: 'South Carolina', abbreviation: 'SOU',  isFirstFour: true },
+  { id: 53, name: 'Samford',          seed: 16, region: 'South Carolina', abbreviation: 'SAM',  isFirstFour: true },
+  { id: 54, name: 'Clemson',          seed: 8,  region: 'South Carolina', abbreviation: 'CLEM' },
+  { id: 55, name: 'USC',              seed: 9,  region: 'South Carolina', abbreviation: 'USC' },
+  { id: 56, name: 'Michigan State',   seed: 5,  region: 'South Carolina', abbreviation: 'MSU' },
+  { id: 57, name: 'Colorado State',   seed: 12, region: 'South Carolina', abbreviation: 'CSU' },
+  { id: 58, name: 'Oklahoma',         seed: 4,  region: 'South Carolina', abbreviation: 'OU' },
+  { id: 59, name: 'Idaho',            seed: 13, region: 'South Carolina', abbreviation: 'IDA' },
+  { id: 60, name: 'Washington',       seed: 6,  region: 'South Carolina', abbreviation: 'WASH' },
+  { id: 61, name: 'South Dakota State',seed:11, region: 'South Carolina', abbreviation: 'SDST' },
+  { id: 62, name: 'TCU',              seed: 3,  region: 'South Carolina', abbreviation: 'TCU' },
+  { id: 63, name: 'UC San Diego',     seed: 14, region: 'South Carolina', abbreviation: 'UCSD' },
+  { id: 64, name: 'Georgia',          seed: 7,  region: 'South Carolina', abbreviation: 'UGA' },
+  { id: 65, name: 'Virginia',         seed: 10, region: 'South Carolina', abbreviation: 'UVA',  isFirstFour: true },
+  { id: 66, name: 'Arizona State',    seed: 10, region: 'South Carolina', abbreviation: 'ASU',  isFirstFour: true },
+  { id: 67, name: 'Iowa',             seed: 2,  region: 'South Carolina', abbreviation: 'IOWA' },
+  { id: 68, name: 'Fairleigh Dickinson',seed:15,region: 'South Carolina', abbreviation: 'FDU' },
+]
+
+// Helper to find a team by id
+export function getTeam(id: number): Team | undefined {
+  return TEAMS.find(t => t.id === id)
+}
+
+// Helper to get teams by region and seed (returns both for First Four seeds)
+export function getTeamsByRegionAndSeed(region: Region, seed: number): Team[] {
+  return TEAMS.filter(t => t.region === region && t.seed === seed)
+}
+
+// First Round matchups per region (after First Four resolves)
+// Format: [topSeed, bottomSeed] — standard NCAA bracket pairing
+export const REGION_MATCHUPS: [number, number][] = [
+  [1, 16],
+  [8, 9],
+  [5, 12],
+  [4, 13],
+  [6, 11],
+  [3, 14],
+  [7, 10],
+  [2, 15],
+]
+
+// Scoring per round
+export const ROUND_POINTS: Record<number, number> = {
+  1: 10,   // First Round (64)
+  2: 20,   // Second Round (32)
+  3: 40,   // Sweet Sixteen
+  4: 80,   // Elite Eight
+  5: 160,  // Final Four
+  6: 320,  // Championship
+}
+
+export const ROUND_NAMES: Record<number, string> = {
+  1: 'First Round',
+  2: 'Second Round',
+  3: 'Sweet Sixteen',
+  4: 'Elite Eight',
+  5: 'Final Four',
+  6: 'Championship',
+}
+
+export const REGIONS: Region[] = ['UConn', 'UCLA', 'Texas', 'South Carolina']
+
+// Get first-round teams for a region in bracket order
+// Returns pairs of [topTeam, bottomTeam] for each of the 8 matchups
+export function getRegionMatchups(region: Region): Array<{ top: Team, bottom: Team, matchupIndex: number }> {
+  const regionTeams = TEAMS.filter(t => t.region === region && !t.isFirstFour)
+  const firstFourTeams = TEAMS.filter(t => t.region === region && t.isFirstFour)
+
+  return REGION_MATCHUPS.map(([topSeed, bottomSeed], idx) => {
+    let top = regionTeams.find(t => t.seed === topSeed)!
+    let bottom = regionTeams.find(t => t.seed === bottomSeed)!
+
+    // If this seed has first four teams, show as "TBD (FF)"
+    if (!top) {
+      const ff = firstFourTeams.filter(t => t.seed === topSeed)
+      top = ff[0] // Will show "First Four" label
+    }
+    if (!bottom) {
+      const ff = firstFourTeams.filter(t => t.seed === bottomSeed)
+      bottom = ff[0]
+    }
+
+    return { top, bottom, matchupIndex: idx }
+  })
+}
+
+// Generate a pick key for storing in brackets JSONB
+// Format: "R{region_index}_{round}_{game}"
+export function pickKey(region: Region, round: number, game: number): string {
+  const ri = REGIONS.indexOf(region)
+  return `R${ri}_${round}_${game}`
+}
