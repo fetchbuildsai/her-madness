@@ -1,9 +1,12 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CommunityClient from './CommunityClient'
 
 export default async function CommunityPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/auth/login?redirectTo=/community')
 
   const { data: profile } = user
     ? await supabase.from('profiles').select('id, username, display_name, avatar_url, instagram, threads, twitter').eq('id', user.id).single()

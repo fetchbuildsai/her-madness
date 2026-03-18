@@ -27,36 +27,36 @@ const features = [
     title: "Your Bracket",
     desc: "68 real teams. Every seed. Every region. Pick your winners all the way to the championship.",
     accent: "#d4a017",
-    gradient: "from-[#d4a017]/10 to-transparent",
     border: "hover:border-[#d4a017]/50",
     glow: "rgba(212,160,23,0.15)",
+    href: "/bracket",
   },
   {
     icon: "📊",
     title: "Live Scores",
     desc: "Real-time updates every game. No refresh needed. Know the moment something goes crazy.",
     accent: "#a855f7",
-    gradient: "from-[#a855f7]/10 to-transparent",
     border: "hover:border-[#a855f7]/50",
     glow: "rgba(168,85,247,0.15)",
+    href: "/scores",
   },
   {
     icon: "💬",
     title: "Game Chat",
     desc: "Every game has its own room. Talk through the action with fans who actually know WBB.",
     accent: "#d4a017",
-    gradient: "from-[#d4a017]/10 to-transparent",
     border: "hover:border-[#d4a017]/50",
     glow: "rgba(212,160,23,0.15)",
+    href: "/community",
   },
   {
     icon: "🏆",
     title: "Leaderboard",
     desc: "See where your bracket stands vs. everyone else. Rankings update live after every game.",
     accent: "#a855f7",
-    gradient: "from-[#a855f7]/10 to-transparent",
     border: "hover:border-[#a855f7]/50",
     glow: "rgba(168,85,247,0.15)",
+    href: "/leaderboard",
   },
 ]
 
@@ -291,22 +291,30 @@ export default function Home() {
                 key={f.title}
                 variants={fadeUp}
                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                className={`group relative bg-[#111113] border border-white/[0.07] rounded-3xl p-6 ${f.border} transition-colors duration-300 cursor-default overflow-hidden`}
               >
-                {/* Card glow on hover */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-3xl"
-                  style={{ background: `radial-gradient(circle at 50% 0%, ${f.glow}, transparent 70%)` }} />
+                <Link
+                  href={f.href}
+                  className={`group relative bg-[#111113] border border-white/[0.07] rounded-3xl p-6 ${f.border} transition-colors duration-300 cursor-pointer overflow-hidden flex flex-col h-full`}
+                >
+                  {/* Card glow on hover */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-3xl"
+                    style={{ background: `radial-gradient(circle at 50% 0%, ${f.glow}, transparent 70%)` }} />
 
-                <div className="relative z-10">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
-                    style={{ backgroundColor: `${f.accent}15`, boxShadow: `0 0 24px ${f.accent}20` }}
-                  >
-                    {f.icon}
+                  <div className="relative z-10 flex-1">
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-5"
+                      style={{ backgroundColor: `${f.accent}15`, boxShadow: `0 0 24px ${f.accent}20` }}
+                    >
+                      {f.icon}
+                    </div>
+                    <h3 className="font-bold text-white text-base mb-2">{f.title}</h3>
+                    <p className="text-sm text-[#71717a] leading-relaxed">{f.desc}</p>
                   </div>
-                  <h3 className="font-bold text-white text-base mb-2">{f.title}</h3>
-                  <p className="text-sm text-[#71717a] leading-relaxed">{f.desc}</p>
-                </div>
+                  <div className="relative z-10 mt-4 flex items-center gap-1 text-xs font-semibold transition-colors"
+                    style={{ color: f.accent }}>
+                    <span>Go →</span>
+                  </div>
+                </Link>
               </motion.div>
             ))}
           </motion.div>

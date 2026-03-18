@@ -216,3 +216,77 @@ export function getMatchupWinProb(topSeed: number, bottomSeed: number): number {
   const base = R1_WIN_PROB[`${lo}-${hi}`] ?? 50
   return topSeed <= bottomSeed ? base : 100 - base
 }
+
+// ── ESPN CDN logo IDs ─────────────────────────────────────────────────
+// URL: https://a.espncdn.com/i/teamlogos/ncaa/500/{id}.png
+// Maps our internal team id → ESPN school id
+export const ESPNIDS: Partial<Record<number, number>> = {
+  1:  41,   // UConn
+  2:  2636, // UT San Antonio
+  3:  66,   // Iowa State
+  4:  183,  // Syracuse
+  5:  120,  // Maryland
+  6:  93,   // Murray State
+  7:  153,  // North Carolina
+  8:  2710, // Western Illinois
+  9:  87,   // Notre Dame
+  10: 2217, // Fairfield
+  11: 194,  // Ohio State
+  12: 47,   // Howard
+  13: 356,  // Illinois
+  14: 38,   // Colorado
+  15: 238,  // Vanderbilt
+  16: 2272, // High Point
+  17: 26,   // UCLA
+  18: 2856, // Cal Baptist
+  19: 197,  // Oklahoma State
+  20: 163,  // Princeton
+  21: 145,  // Ole Miss
+  22: 2250, // Gonzaga
+  23: 135,  // Minnesota
+  24: 2739, // Green Bay
+  25: 239,  // Baylor
+  26: 158,  // Nebraska
+  27: 257,  // Richmond
+  28: 150,  // Duke
+  29: 232,  // Charleston
+  30: 2641, // Texas Tech
+  31: 222,  // Villanova
+  32: 99,   // LSU
+  33: 294,  // Jacksonville
+  34: 251,  // Texas
+  35: 2623, // Missouri State
+  36: 2617, // Stephen F. Austin
+  37: 2483, // Oregon
+  38: 259,  // Virginia Tech
+  39: 96,   // Kentucky
+  40: 256,  // James Madison
+  41: 277,  // West Virginia
+  42: 193,  // Miami (OH)
+  43: 333,  // Alabama
+  44: 227,  // Rhode Island
+  45: 97,   // Louisville
+  46: 261,  // Vermont
+  47: 152,  // NC State
+  48: 2633, // Tennessee
+  49: 130,  // Michigan
+  50: 107,  // Holy Cross
+  51: 2579, // South Carolina
+  52: 2582, // Southern University
+  53: 2535, // Samford
+  54: 228,  // Clemson
+  55: 30,   // USC
+  56: 127,  // Michigan State
+  57: 36,   // Colorado State
+  58: 201,  // Oklahoma
+  59: 70,   // Idaho
+  60: 264,  // Washington
+  61: 2571, // South Dakota State
+  62: 2628, // TCU
+  63: 28,   // UC San Diego
+  64: 61,   // Georgia
+  65: 258,  // Virginia
+  66: 9,    // Arizona State
+  67: 2294, // Iowa
+  68: 161,  // Fairleigh Dickinson
+}
