@@ -179,18 +179,24 @@ export default function AdminDashboard({ stats }: { stats: Stats }) {
         </motion.div>
 
         {/* Links */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 mt-6 flex-wrap">
+          <Link
+            href="/admin/scores"
+            className="flex-1 py-3 text-center text-xs font-semibold border border-[#d4a017]/30 text-[#d4a017] rounded-xl hover:bg-[#d4a017]/10 transition-all min-w-[160px]"
+          >
+            ⚡ Enter Results &amp; Scores →
+          </Link>
           <a
             href={`https://app.beehiiv.com/publications/${process.env.NEXT_PUBLIC_BEEHIIV_PUB_ID ?? 'd3d7b029-0880-4b74-9d5c-13211181850d'}/subscribers`}
             target="_blank" rel="noopener noreferrer"
-            className="flex-1 py-3 text-center text-xs font-semibold border border-white/[0.08] text-[#71717a] rounded-xl hover:border-[#a855f7]/40 hover:text-[#a855f7] transition-all"
+            className="flex-1 py-3 text-center text-xs font-semibold border border-white/[0.08] text-[#71717a] rounded-xl hover:border-[#a855f7]/40 hover:text-[#a855f7] transition-all min-w-[160px]"
           >
             View Beehiiv Subscribers →
           </a>
           <a
             href="https://supabase.com/dashboard/project/pwuayyyqonocvuozycek/editor"
             target="_blank" rel="noopener noreferrer"
-            className="flex-1 py-3 text-center text-xs font-semibold border border-white/[0.08] text-[#71717a] rounded-xl hover:border-[#d4a017]/40 hover:text-[#d4a017] transition-all"
+            className="flex-1 py-3 text-center text-xs font-semibold border border-white/[0.08] text-[#71717a] rounded-xl hover:border-[#d4a017]/40 hover:text-[#d4a017] transition-all min-w-[160px]"
           >
             View Supabase Data →
           </a>

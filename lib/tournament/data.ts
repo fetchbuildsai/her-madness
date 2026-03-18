@@ -200,3 +200,19 @@ export const FIRST_FOUR: FirstFourGame[] = [
 export function getFirstFourGame(region: Region, seed: number): FirstFourGame | null {
   return FIRST_FOUR.find(f => f.region === region && f.seed === seed) ?? null
 }
+
+// ── Win probability (historical NCAA women's tournament R1 rates) ────
+// Source: seed-based historical win rates, top seed's % chance to win
+const R1_WIN_PROB: Record<string, number> = {
+  '1-16': 99, '2-15': 94, '3-14': 85, '4-13': 79,
+  '5-12': 65, '6-11': 62, '7-10': 61, '8-9':  54,
+}
+
+// Returns top team's win probability (0–100) given their seeds.
+// Works for any seed matchup — extrapolates if not in table.
+export function getMatchupWinProb(topSeed: number, bottomSeed: number): number {
+  const lo = Math.min(topSeed, bottomSeed)
+  const hi = Math.max(topSeed, bottomSeed)
+  const base = R1_WIN_PROB[`${lo}-${hi}`] ?? 50
+  return topSeed <= bottomSeed ? base : 100 - base
+}
