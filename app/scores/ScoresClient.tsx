@@ -1,24 +1,38 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
 import AppNav from '@/components/AppNav'
 
-interface Team { id: number; name: string; seed: number }
-interface Game {
-  id: number
-  round: number
-  region: string | null
-  game_slot: string | null
-  team1: Team | null
-  team2: Team | null
-  team1_score: number | null
-  team2_score: number | null
-  winner_id: number | null
-  tip_off: string | null
-  status: 'upcoming' | 'live' | 'final'
+// ─── Types ───────────────────────────────────────────────────────
+interface ESPNTeam {
+  id: string
+  name: string
+  shortName: string
+  abbreviation: string
+  logo: string | null
+  seed: number | null
+  score: number
+  winner: boolean
 }
 
+interface ESPNGame {
+  id: string
+  name: string
+  shortName: string
+  date: string
+  status: 'upcoming' | 'live' | 'final'
+  round: number
+  region: string
+  clock: string
+  period: number
+  note: string
+  broadcast: string | null
+  venue: string | null
+  home: ESPNTeam
+  away: ESPNTeam
+}
+
+// ─── Constants ───────────────────────────────────────────────────
 const ROUND_LABELS: Record<number, string> = {
   0: 'First Four',
   1: 'First Round',
@@ -30,82 +44,137 @@ const ROUND_LABELS: Record<number, string> = {
 }
 
 const ROUND_DATES: Record<number, string> = {
-  0: 'Mar 18–19',
-  1: 'Mar 20–21',
-  2: 'Mar 22–23',
-  3: 'Mar 27–28',
-  4: 'Mar 29–30',
-  5: 'Apr 3–5',
-  6: 'Apr 7',
+  0: 'March 18',
+  1: 'March 20–21',
+  2: 'March 22–23',
+  3: 'March 27–28',
+  4: 'March 29–30',
+  5: 'April 3 & 5',
+  6: 'April 7',
 }
 
-function formatTipOff(tip: string | null): string {
-  if (!tip) return 'TBD'
-  const d = new Date(tip)
+function formatGameTime(dateStr: string): string {
+  const d = new Date(dateStr)
   return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/New_York',
+    timeZoneName: 'short',
   })
 }
 
-function GameCard({ game, username }: { game: Game; username?: string }) {
-  const isLive = game.status === 'live'
-  const isFinal = game.status === 'final'
-  const team1Wins = isFinal && game.winner_id === game.team1?.id
-  const team2Wins = isFinal && game.winner_id === game.team2?.id
+// ─── Team logo ───────────────────────────────────────────────────
+function TeamLogo({ logo, name, size = 26 }: { logo: string | null; name: string; size?: number }) {
+  const [errored, setErrored] = useState(false)
+
+  if (!logo || errored) {
+    return (
+      <div
+        className="rounded-full bg-white/10 flex items-center justify-center shrink-0 text-[8px] font-bold text-white/40"
+        style={{ width: size, height: size }}
+      >
+        {name.slice(0, 2).toUpperCase()}
+      </div>
+    )
+  }
 
   return (
-    <div className={`bg-[#111113] border rounded-xl p-4 transition-all ${
-      isLive ? 'border-[#d4a017]/40 shadow-[0_0_12px_rgba(212,160,23,0.08)]' : 'border-white/[0.07]'
-    }`}>
-      {/* Status badge */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-semibold text-[#52525b] uppercase tracking-widest">
-          {game.region ?? 'National'}
-        </span>
-        {isLive && (
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#d4a017] animate-pulse" />
-            <span className="text-[10px] font-bold text-[#d4a017] uppercase tracking-wider">Live</span>
-          </div>
-        )}
-        {isFinal && (
-          <span className="text-[10px] font-semibold text-[#52525b] uppercase tracking-wider">Final</span>
-        )}
-        {!isLive && !isFinal && (
-          <span className="text-[10px] text-[#3f3f46]">{formatTipOff(game.tip_off)}</span>
-        )}
-      </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={logo}
+      alt={name}
+      width={size}
+      height={size}
+      className="object-contain shrink-0"
+      onError={() => setErrored(true)}
+    />
+  )
+}
 
-      {/* Teams */}
-      <div className="space-y-2">
-        {[
-          { team: game.team1, score: game.team1_score, wins: team1Wins },
-          { team: game.team2, score: game.team2_score, wins: team2Wins },
-        ].map(({ team, score, wins }, i) => (
-          <div
-            key={i}
-            className={`flex items-center justify-between py-1.5 rounded-lg px-2 transition-colors ${
-              wins ? 'bg-[#d4a017]/[0.06]' : ''
-            }`}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className={`text-xs font-bold w-4 text-center shrink-0 ${
-                wins ? 'text-[#d4a017]' : 'text-[#52525b]'
-              }`}>
-                {team?.seed ?? '?'}
-              </span>
-              <span className={`text-sm font-semibold truncate ${
-                wins ? 'text-white' : isFinal && !wins ? 'text-[#52525b]' : 'text-[#a1a1aa]'
-              }`}>
-                {team?.name ?? 'TBD'}
+// ─── Game card ───────────────────────────────────────────────────
+function GameCard({ game }: { game: ESPNGame }) {
+  const isLive  = game.status === 'live'
+  const isFinal = game.status === 'final'
+  // ESPN: away = top team in bracket display, home = bottom
+  const top    = game.away
+  const bottom = game.home
+
+  return (
+    <div className={`rounded-xl border bg-[#111113] overflow-hidden transition-all ${
+      isLive
+        ? 'border-[#d4a017]/50 shadow-[0_0_16px_rgba(212,160,23,0.1)]'
+        : 'border-white/[0.07]'
+    }`}>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+        <div className="flex flex-col min-w-0">
+          {game.region && (
+            <span className="text-[9px] font-semibold text-white/25 uppercase tracking-wider leading-tight truncate">
+              {game.region}
+            </span>
+          )}
+          {!isLive && !isFinal && (
+            <span className="text-[10px] text-white/35 leading-tight truncate">
+              {formatGameTime(game.date)}
+            </span>
+          )}
+          {isFinal && (
+            <span className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Final</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {game.broadcast && (
+            <span className="text-[9px] font-bold text-white/30 border border-white/10 rounded px-1.5 py-0.5">
+              {game.broadcast}
+            </span>
+          )}
+          {isLive && (
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#d4a017] animate-pulse" />
+              <span className="text-[10px] font-bold text-[#d4a017] uppercase tracking-wider">
+                {game.period > 0 ? `Q${game.period} ${game.clock}` : 'Live'}
               </span>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="h-px bg-white/[0.05] mx-3" />
+
+      {/* Teams */}
+      <div className="px-3 py-2 space-y-1">
+        {[top, bottom].map((team, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-2 py-1 px-1 rounded-lg transition-colors ${
+              isFinal && team.winner ? 'bg-[#d4a017]/8' : ''
+            }`}
+          >
+            <TeamLogo logo={team.logo} name={team.name} size={24} />
+            <span className={`text-[10px] font-bold w-4 text-right shrink-0 ${
+              team.seed && team.seed <= 3 ? 'text-[#d4a017]' : 'text-white/25'
+            }`}>
+              {team.seed ?? ''}
+            </span>
+            <span className={`text-sm font-semibold truncate flex-1 ${
+              isFinal && team.winner  ? 'text-white'
+              : isFinal              ? 'text-white/30'
+                                     : 'text-white/70'
+            }`}>
+              {team.shortName || team.abbreviation}
+            </span>
             {(isLive || isFinal) && (
-              <span className={`text-lg font-black tabular-nums ml-2 shrink-0 ${
-                wins ? 'text-[#d4a017]' : isFinal ? 'text-[#52525b]' : 'text-white'
+              <span className={`text-base font-black tabular-nums shrink-0 ${
+                isFinal && team.winner ? 'text-[#d4a017]'
+                : isFinal             ? 'text-white/25'
+                                      : 'text-white'
               }`}>
-                {score ?? 0}
+                {team.score}
               </span>
             )}
           </div>
@@ -115,71 +184,41 @@ function GameCard({ game, username }: { game: Game; username?: string }) {
   )
 }
 
-function EmptyRound({ round }: { round: number }) {
-  // Show placeholder cards for rounds that haven't been populated yet
-  const placeholders = round === 6 ? 1 : round === 5 ? 2 : round === 4 ? 4 : round === 3 ? 8 : 16
-  return (
-    <div className={`grid gap-3 ${
-      round === 6 ? 'grid-cols-1 max-w-xs mx-auto' :
-      round === 5 ? 'grid-cols-1 sm:grid-cols-2 max-w-md mx-auto' :
-      'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-    }`}>
-      {Array.from({ length: placeholders }).map((_, i) => (
-        <div key={i} className="bg-[#111113] border border-white/[0.04] rounded-xl p-4 opacity-40">
-          <div className="h-2 w-16 bg-[#27272a] rounded mb-4" />
-          <div className="space-y-3">
-            <div className="h-4 w-32 bg-[#27272a] rounded" />
-            <div className="h-4 w-28 bg-[#27272a] rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+// ─── Main component ──────────────────────────────────────────────
+export default function ScoresClient({ username }: { username?: string }) {
+  const [games, setGames]         = useState<ESPNGame[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [lastFetch, setLastFetch] = useState<Date | null>(null)
 
-export default function ScoresClient({
-  initialGames,
-  username,
-}: {
-  initialGames: Game[]
-  username?: string
-}) {
-  const [games, setGames] = useState<Game[]>(initialGames)
-
-  useEffect(() => {
-    const supabase = createClient()
-
-    const channel = supabase
-      .channel('games-live')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'games' },
-        (payload) => {
-          setGames(prev => {
-            if (payload.eventType === 'UPDATE') {
-              return prev.map(g => g.id === (payload.new as Game).id ? payload.new as Game : g)
-            }
-            if (payload.eventType === 'INSERT') {
-              return [...prev, payload.new as Game]
-            }
-            return prev
-          })
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+  const fetchScores = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/espn', { cache: 'no-store' })
+      const data = await res.json()
+      if (Array.isArray(data.games)) {
+        setGames(data.games)
+        setLastFetch(new Date())
+      }
+    } catch (err) {
+      console.error('Scores fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Group by round
-  const byRound = games.reduce<Record<number, Game[]>>((acc, g) => {
-    const r = g.round
-    if (!acc[r]) acc[r] = []
-    acc[r].push(g)
+  useEffect(() => {
+    fetchScores()
+    const interval = setInterval(fetchScores, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchScores])
+
+  const byRound     = games.reduce<Record<number, ESPNGame[]>>((acc, g) => {
+    if (!acc[g.round]) acc[g.round] = []
+    acc[g.round].push(g)
     return acc
   }, {})
-
-  const hasAnyGames = games.length > 0
+  const sortedRounds = Object.keys(byRound).map(Number).sort((a, b) => a - b)
+  const liveGames   = games.filter(g => g.status === 'live')
+  const hasLive     = liveGames.length > 0
 
   return (
     <div className="min-h-screen bg-[#09090b]">
@@ -188,50 +227,66 @@ export default function ScoresClient({
       <div className="max-w-6xl mx-auto px-4 pt-20 pb-16 sm:pt-24">
 
         {/* Header */}
-        <div className="mb-10">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-1.5">
             <h1 className="text-2xl font-black text-white">Live Scores</h1>
-            {games.some(g => g.status === 'live') && (
+            {hasLive && (
               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#d4a017]/10 border border-[#d4a017]/20 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#d4a017] animate-pulse" />
-                <span className="text-[10px] font-bold text-[#d4a017] uppercase tracking-wider">Live Now</span>
+                <span className="text-[10px] font-bold text-[#d4a017] uppercase tracking-wider">
+                  {liveGames.length} Live Now
+                </span>
               </div>
             )}
           </div>
-          <p className="text-sm text-[#52525b]">
-            2026 NCAA Women's Basketball Tournament · Updates automatically
+          <p className="text-sm text-white/30">
+            2026 NCAA Women's Basketball Tournament · Updates every 30s
           </p>
+          {lastFetch && (
+            <p className="text-[10px] text-white/20 mt-1">
+              Last updated {lastFetch.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
         </div>
 
-        {!hasAnyGames ? (
-          /* Pre-tournament state */
-          <div className="space-y-12">
-            {[1, 2, 3, 4, 5, 6].map(round => (
-              <div key={round}>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-sm font-bold text-white">{ROUND_LABELS[round]}</h2>
-                    <p className="text-xs text-[#52525b] mt-0.5">{ROUND_DATES[round]}</p>
-                  </div>
-                  <span className="text-xs text-[#3f3f46] font-medium">Upcoming</span>
-                </div>
-                <EmptyRound round={round} />
-              </div>
+        {/* Live games pinned to top */}
+        {hasLive && (
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-2 h-2 rounded-full bg-[#d4a017] animate-pulse" />
+              <h2 className="text-sm font-bold text-[#d4a017] uppercase tracking-wider">Happening Now</h2>
+            </div>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {liveGames.map(g => <GameCard key={g.id} game={g} />)}
+            </div>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-28 bg-white/[0.03] border border-white/[0.04] rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : (
-          /* Games populated */
-          <div className="space-y-12">
-            {[6, 5, 4, 3, 2, 1, 0].map(round => {
+        )}
+
+        {/* All rounds */}
+        {!loading && (
+          <div className="space-y-10">
+            {sortedRounds.map(round => {
               const roundGames = byRound[round]
-              if (!roundGames?.length) return null
-              const liveCount = roundGames.filter(g => g.status === 'live').length
+              const liveCount  = roundGames.filter(g => g.status === 'live').length
+              const cols = round >= 5
+                ? 'grid-cols-1 sm:grid-cols-2 max-w-lg'
+                : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+
               return (
                 <div key={round}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-sm font-bold text-white">{ROUND_LABELS[round]}</h2>
-                      <p className="text-xs text-[#52525b] mt-0.5">{ROUND_DATES[round]}</p>
+                      <p className="text-xs text-white/25 mt-0.5">{ROUND_DATES[round]}</p>
                     </div>
                     {liveCount > 0 && (
                       <div className="flex items-center gap-1.5">
@@ -240,14 +295,8 @@ export default function ScoresClient({
                       </div>
                     )}
                   </div>
-                  <div className={`grid gap-3 ${
-                    round === 6 ? 'grid-cols-1 max-w-xs mx-auto' :
-                    round === 5 ? 'grid-cols-1 sm:grid-cols-2 max-w-md mx-auto' :
-                    'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                  }`}>
-                    {roundGames.map(game => (
-                      <GameCard key={game.id} game={game} username={username} />
-                    ))}
+                  <div className={`grid gap-3 ${cols}`}>
+                    {roundGames.map(g => <GameCard key={g.id} game={g} />)}
                   </div>
                 </div>
               )
@@ -255,9 +304,16 @@ export default function ScoresClient({
           </div>
         )}
 
-        {/* Footer note */}
-        <p className="text-center text-xs text-[#3f3f46] mt-12">
-          Scores update in real time · Tournament begins March 20
+        {!loading && games.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-5xl mb-4">🏀</p>
+            <p className="text-white/40 font-semibold">First Four starts tomorrow!</p>
+            <p className="text-white/20 text-sm mt-1">Check back March 18 — Nebraska vs Richmond, 7pm ET on ESPN2</p>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-white/10 mt-12">
+          Scores via ESPN · All times Eastern
         </p>
       </div>
     </div>

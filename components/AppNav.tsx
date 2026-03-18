@@ -40,9 +40,16 @@ export default function AppNav({ username }: Props) {
             ))}
           </div>
         </div>
-        {username && (
-          <span className="text-xs text-[#52525b] font-medium">@{username}</span>
-        )}
+        <div className="flex items-center gap-3">
+          <Link href="/community" className={`text-xs font-semibold transition-colors ${
+            pathname === '/community' ? 'text-white' : 'text-[#71717a] hover:text-[#a1a1aa]'
+          }`}>Chat</Link>
+          {username && (
+            <Link href="/profile" className="text-xs font-semibold text-[#71717a] hover:text-[#d4a017] transition-colors">
+              @{username}
+            </Link>
+          )}
+        </div>
       </div>
       {/* Mobile nav */}
       <div className="sm:hidden flex border-t border-[#1c1c1f] px-2 pb-1 pt-1 gap-1">
