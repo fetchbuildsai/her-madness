@@ -23,12 +23,16 @@ export default async function BracketPage() {
     .eq('id', user.id)
     .single()
 
+  // Auto-lock at March 20, 2026 11:00 AM EDT (15:00 UTC)
+  const LOCK_TIME = new Date('2026-03-20T15:00:00Z')
+  const isLocked = !!bracket?.locked_at || new Date() >= LOCK_TIME
+
   return (
     <BracketPicker
       userId={user.id}
       username={profile?.username ?? 'You'}
       initialPicks={bracket?.picks ?? {}}
-      isLocked={!!bracket?.locked_at}
+      isLocked={isLocked}
       isSubmitted={!!bracket?.submitted_at}
     />
   )

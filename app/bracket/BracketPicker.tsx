@@ -4,20 +4,19 @@ import { useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import AppNav from '@/components/AppNav'
 import {
-  REGIONS, ROUND_POINTS, getRegionMatchups, pickKey, getTeam,
-  type Region, type Team
+  REGIONS, ROUND_POINTS, FIRST_FOUR, getRegionMatchups, getFirstFourGame, pickKey, getTeam,
+  type Region, type Team, type FirstFourGame
 } from '@/lib/tournament/data'
 
 // ── Layout constants ──────────────────────────────────────────────────
-const CARD_H     = 56    // height of one matchup card (2 team rows + divider)
-const CARD_W     = 144   // width of each round column
-const CONN_W     = 12    // SVG connector width between columns
-const REGION_H   = 576   // fixed height per region container (8 games × 72px)
-const REGION_GAP = 16    // vertical gap between top + bottom regions on each side
+const CARD_H     = 56
+const CARD_W     = 144
+const CONN_W     = 12
+const REGION_H   = 576
+const REGION_GAP = 16
 
 type Dir = 'ltr' | 'rtl'
 
-// Y offset of game gi within round r, inside REGION_H container
 function gameTopPx(round: number, gi: number): number {
   const span = REGION_H / (8 >> (round - 1))
   return Math.round(gi * span + (span - CARD_H) / 2)
@@ -39,27 +38,62 @@ const ROUND_LABELS: Record<number, string> = {
 
 // ── Props ─────────────────────────────────────────────────────────────
 interface Props {
-  userId: string
-  username: string
+  userId:       string
+  username:     string
   initialPicks: Record<string, number>
-  isLocked: boolean
-  isSubmitted: boolean
+  isLocked:     boolean
+  isSubmitted:  boolean
 }
 
 // ── Main component ────────────────────────────────────────────────────
-export default function BracketPicker({ userId, username, initialPicks, isLocked }: Props) {
-  const [picks, setPicks]   = useState<Record<string, number>>(initialPicks)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved]   = useState(false)
+export default function BracketPicker({ userId, username, initialPicks, isLocked, isSubmitted }: Props) {
+  const [picks, setPicks]             = useState<Record<string, number>>(initialPicks)
+  const [saving, setSaving]           = useState(false)
+  const [saved, setSaved]             = useState(false)
+  const [confirmSubmit, setConfirm]   = useState(false)
+
+  // After submitting OR after lock — bracket is read-only
+  const readOnly = isLocked || isSubmitted
 
   const totalGames = 63
-  const pickCount  = Object.values(picks).filter(Boolean).length
+  // Count only the 63 main bracket picks (not FF4 play-in picks)
+  const pickCount  = Object.values(picks).filter((v, _, arr) => {
+    // exclude FF4_ and FF_ and CHAMP keys from the 63 count
+    return Boolean(v)
+  }).filter((_, i) => {
+    const key = Object.keys(picks)[i]
+    return !key.startsWith('FF')
+  }).length
+
+  // Simpler count: everything that's not a Final Four or FF4 key
+  const bracketPickCount = Object.entries(picks).filter(([k, v]) => v && !k.startsWith('FF')).length
 
   const makePick = useCallback((key: string, teamId: number) => {
-    if (isLocked) return
-    setPicks(prev => ({ ...prev, [key]: teamId }))
+    if (readOnly) return
+    setPicks(prev => {
+      const next = { ...prev, [key]: teamId }
+      // If this is an FF4 pick changing, clear the R1 pick for that slot
+      // so stale team IDs don't persist
+      const ff4 = FIRST_FOUR.find(f => f.key === key)
+      if (ff4) {
+        const ri = REGIONS.indexOf(ff4.region)
+        // Find which R1 game index uses this seed
+        const MATCHUP_SEEDS = [[1,16],[8,9],[5,12],[4,13],[6,11],[3,14],[7,10],[2,15]]
+        const gi = MATCHUP_SEEDS.findIndex(
+          ([top, bot]) => top === ff4.seed || bot === ff4.seed
+        )
+        if (gi !== -1) {
+          const r1key = `R${ri}_1_${gi}`
+          // Only clear if the current R1 pick was one of the FF4 teams
+          if (next[r1key] === ff4.topTeamId || next[r1key] === ff4.bottomTeamId) {
+            delete next[r1key]
+          }
+        }
+      }
+      return next
+    })
     setSaved(false)
-  }, [isLocked])
+  }, [readOnly])
 
   async function saveBracket() {
     setSaving(true)
@@ -73,28 +107,25 @@ export default function BracketPicker({ userId, username, initialPicks, isLocked
   }
 
   async function submitBracket() {
+    setConfirm(false)
     setSaving(true)
     const supabase = createClient()
     await supabase.from('brackets').upsert({
-      user_id: userId,
+      user_id:      userId,
       picks,
       submitted_at: new Date().toISOString(),
       updated_at:   new Date().toISOString(),
     }, { onConflict: 'user_id' })
     setSaving(false)
-    setSaved(true)
     window.location.reload()
   }
 
-  // Build "advanced" map — which team holds each pick slot
+  // ── Build "advanced" map ─────────────────────────────────────────────
   const advanced: Record<string, Team | null> = {}
   REGIONS.forEach(region => {
-    getRegionMatchups(region).forEach((_, gi) => {
-      const k = pickKey(region, 1, gi)
-      advanced[k] = picks[k] ? (getTeam(picks[k]) ?? null) : null
-    })
-    for (let r = 2; r <= 4; r++) {
-      for (let gi = 0; gi < (8 >> (r - 1)); gi++) {
+    for (let r = 1; r <= 4; r++) {
+      const count = 8 >> (r - 1)
+      for (let gi = 0; gi < count; gi++) {
         const k = pickKey(region, r, gi)
         advanced[k] = picks[k] ? (getTeam(picks[k]) ?? null) : null
       }
@@ -106,15 +137,18 @@ export default function BracketPicker({ userId, username, initialPicks, isLocked
   }
   advanced['CHAMP'] = picks['CHAMP'] ? (getTeam(picks['CHAMP']) ?? null) : null
 
-  // E8 winners in region order: [UConn(0), UCLA(1), Texas(2), SC(3)]
+  // ── FF4 play-in winners ──────────────────────────────────────────────
+  const ff4Winners: Record<string, Team | null> = {}
+  FIRST_FOUR.forEach(({ key }) => {
+    ff4Winners[key] = picks[key] ? (getTeam(picks[key]) ?? null) : null
+  })
+
+  // ── E8 + Final Four ──────────────────────────────────────────────────
   const e8Winners = REGIONS.map(r => advanced[pickKey(r, 4, 0)])
-
-  // FF matchups: FF_0 = UConn vs UCLA, FF_1 = Texas vs SC
-  const ff0Top    = e8Winners[0]  // UConn
-  const ff0Bottom = e8Winners[1]  // UCLA
-  const ff1Top    = e8Winners[2]  // Texas
-  const ff1Bottom = e8Winners[3]  // South Carolina
-
+  const ff0Top    = e8Winners[0]   // UConn
+  const ff0Bottom = e8Winners[1]   // UCLA
+  const ff1Top    = e8Winners[2]   // Texas
+  const ff1Bottom = e8Winners[3]   // South Carolina
   const champTop    = picks['FF_0'] ? (getTeam(picks['FF_0']) ?? null) : null
   const champBottom = picks['FF_1'] ? (getTeam(picks['FF_1']) ?? null) : null
 
@@ -124,28 +158,78 @@ export default function BracketPicker({ userId, username, initialPicks, isLocked
     <div className="min-h-screen bg-[#0a0a0a]">
       <AppNav username={username} />
 
+      {/* ── Confirm submit modal ── */}
+      {confirmSubmit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="bg-[#111113] border border-white/10 rounded-2xl p-6 max-w-sm w-full">
+            <p className="text-base font-black text-white mb-1">Submit your bracket?</p>
+            <p className="text-sm text-white/50 mb-5">
+              This is final. You&apos;ll only get one submission — you can&apos;t make changes after this.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={submitBracket}
+                disabled={saving}
+                className="flex-1 py-2.5 text-sm font-bold bg-[#d4a017] text-black rounded-xl hover:bg-[#f0c040] transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Submitting…' : 'Yes, Submit'}
+              </button>
+              <button
+                onClick={() => setConfirm(false)}
+                className="px-5 py-2.5 text-sm font-semibold border border-white/15 text-white/60 rounded-xl hover:border-white/30 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Sub-header ── */}
       <div className="pt-14 border-b border-white/[0.07] px-4 py-3 bg-[#0a0a0a] sticky top-14 z-10">
-        <div className="flex items-center justify-between max-w-none">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-black text-white">{username}&apos;s Bracket</h1>
             <p className="text-[11px] text-white/30">
               {isLocked
                 ? '🔒 Locked — tournament is underway'
-                : 'Locks Friday, March 20 at 11:00 AM ET'}
+                : isSubmitted
+                  ? '✓ Submitted — good luck!'
+                  : 'Locks Friday, March 20 at 11:00 AM ET'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 mr-1">
-              <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#d4a017] rounded-full transition-all"
-                  style={{ width: `${(pickCount / totalGames) * 100}%` }}
-                />
+            {/* Progress bar */}
+            {!isSubmitted && (
+              <div className="flex items-center gap-1.5 mr-1">
+                <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#d4a017] rounded-full transition-all"
+                    style={{ width: `${(bracketPickCount / totalGames) * 100}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-white/30 tabular-nums">
+                  {bracketPickCount}/{totalGames}
+                </span>
               </div>
-              <span className="text-[10px] text-white/30 tabular-nums">{pickCount}/{totalGames}</span>
-            </div>
-            {!isLocked && (
+            )}
+
+            {/* Submitted badge */}
+            {isSubmitted && (
+              <span className="px-2 py-1 text-xs font-bold text-[#22c55e] border border-[#22c55e]/30 rounded-lg">
+                ✓ Submitted
+              </span>
+            )}
+
+            {/* Locked badge */}
+            {isLocked && !isSubmitted && (
+              <span className="px-2 py-1 text-xs font-semibold text-[#a855f7] border border-[#7c3aed]/30 rounded-lg">
+                🔒 Locked
+              </span>
+            )}
+
+            {/* Save button — only when editing */}
+            {!readOnly && (
               <button
                 onClick={saveBracket}
                 disabled={saving}
@@ -154,20 +238,37 @@ export default function BracketPicker({ userId, username, initialPicks, isLocked
                 {saving ? '…' : saved ? '✓ Saved' : 'Save'}
               </button>
             )}
-            {!isLocked && pickCount === totalGames && (
+
+            {/* Submit button — only if not submitted, not locked, all 63 picks made */}
+            {!isSubmitted && !isLocked && bracketPickCount === totalGames && (
               <button
-                onClick={submitBracket}
+                onClick={() => setConfirm(true)}
                 disabled={saving}
                 className="px-3 py-1.5 text-xs font-bold bg-[#d4a017] text-black rounded-lg hover:bg-[#f0c040] transition-colors disabled:opacity-40"
               >
                 Submit
               </button>
             )}
-            {isLocked && (
-              <span className="px-2 py-1 text-xs font-semibold text-[#a855f7] border border-[#7c3aed]/30 rounded-lg">
-                🔒 Locked
-              </span>
-            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── First Four section ── */}
+      <div className="border-b border-white/[0.05] bg-[#0a0a0a] px-4 py-3">
+        <div className="max-w-none">
+          <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-2">
+            First Four · Play-In Games · March 18–19
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {FIRST_FOUR.map(ff => (
+              <FirstFourCard
+                key={ff.key}
+                game={ff}
+                pickedId={picks[ff.key]}
+                onPick={(id) => makePick(ff.key, id)}
+                disabled={readOnly}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -178,172 +279,119 @@ export default function BracketPicker({ userId, username, initialPicks, isLocked
           className="flex items-start px-6"
           style={{ minWidth: (CARD_W + CONN_W) * 4 * 2 + 200 + 48 }}
         >
-
-          {/* ── LEFT SIDE: UConn (top) + South Carolina (bottom) ── */}
+          {/* ── LEFT: UConn (top) + South Carolina (bottom) ── */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
             <RegionBlock
-              region="UConn"
-              dir="ltr"
-              picks={picks}
-              advanced={advanced}
-              onPick={makePick}
-              isLocked={isLocked}
+              region="UConn" dir="ltr"
+              picks={picks} advanced={advanced} ff4Winners={ff4Winners}
+              onPick={makePick} readOnly={readOnly}
             />
             <RegionBlock
-              region="South Carolina"
-              dir="ltr"
-              picks={picks}
-              advanced={advanced}
-              onPick={makePick}
-              isLocked={isLocked}
+              region="South Carolina" dir="ltr"
+              picks={picks} advanced={advanced} ff4Winners={ff4Winners}
+              onPick={makePick} readOnly={readOnly}
             />
           </div>
 
           {/* ── CENTER: Final Four + Championship ── */}
           <div className="shrink-0 relative" style={{ width: 200, height: totalH + 28 }}>
-            {/* Section label row spacer to match region header height */}
             <div style={{ height: 28 }} />
-
             <div className="relative" style={{ height: totalH }}>
-              {/* Vertical center line */}
-              <svg
-                width={200}
-                height={totalH}
-                className="absolute inset-0 pointer-events-none"
-              >
-                {/* FF_0 bracket arms */}
-                <line
-                  x1={0} y1={REGION_H / 2}
-                  x2={16} y2={REGION_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
-                <line
-                  x1={200} y1={REGION_H / 2}
-                  x2={184} y2={REGION_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
-                {/* FF_1 bracket arms */}
-                <line
-                  x1={0} y1={REGION_H + REGION_GAP + REGION_H / 2}
-                  x2={16} y2={REGION_H + REGION_GAP + REGION_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
-                <line
-                  x1={200} y1={REGION_H + REGION_GAP + REGION_H / 2}
-                  x2={184} y2={REGION_H + REGION_GAP + REGION_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
-                {/* Vertical from FF_0 to championship */}
-                <line
-                  x1={100} y1={REGION_H / 2}
-                  x2={100} y2={totalH / 2 - CARD_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
-                {/* Vertical from FF_1 to championship */}
-                <line
-                  x1={100} y1={REGION_H + REGION_GAP + REGION_H / 2}
-                  x2={100} y2={totalH / 2 + CARD_H / 2}
-                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-                />
+              <svg width={200} height={totalH} className="absolute inset-0 pointer-events-none">
+                <line x1={0}   y1={REGION_H / 2}                       x2={16}  y2={REGION_H / 2}                       stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                <line x1={200} y1={REGION_H / 2}                       x2={184} y2={REGION_H / 2}                       stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                <line x1={0}   y1={REGION_H + REGION_GAP + REGION_H/2} x2={16}  y2={REGION_H + REGION_GAP + REGION_H/2} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                <line x1={200} y1={REGION_H + REGION_GAP + REGION_H/2} x2={184} y2={REGION_H + REGION_GAP + REGION_H/2} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                <line x1={100} y1={REGION_H / 2}                       x2={100} y2={totalH/2 - CARD_H/2}                stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                <line x1={100} y1={REGION_H + REGION_GAP + REGION_H/2} x2={100} y2={totalH/2 + CARD_H/2}                stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
               </svg>
 
               {/* FF Semi 1 — UConn vs UCLA */}
-              <div
-                className="absolute left-0 right-0 px-3"
-                style={{ top: REGION_H / 2 - CARD_H / 2 }}
-              >
+              <div className="absolute left-0 right-0 px-3" style={{ top: REGION_H/2 - CARD_H/2 }}>
                 <p className="text-[8px] text-white/25 uppercase tracking-widest text-center mb-1">
                   Final Four · {ROUND_POINTS[5]}pts
                 </p>
-                <FFCard
-                  top={ff0Top}
-                  bottom={ff0Bottom}
-                  pickedId={picks['FF_0']}
-                  onPick={(id) => makePick('FF_0', id)}
-                  disabled={isLocked}
-                  label="Semi 1"
-                />
+                <FFCard top={ff0Top} bottom={ff0Bottom} pickedId={picks['FF_0']}
+                  onPick={(id) => makePick('FF_0', id)} disabled={readOnly} />
               </div>
 
               {/* Championship */}
-              <div
-                className="absolute left-0 right-0 px-3"
-                style={{ top: totalH / 2 - CARD_H / 2 - 10 }}
-              >
+              <div className="absolute left-0 right-0 px-3" style={{ top: totalH/2 - CARD_H/2 - 10 }}>
                 <p className="text-[8px] text-[#d4a017] uppercase tracking-widest text-center mb-1 font-bold">
                   🏆 Championship · {ROUND_POINTS[6]}pts
                 </p>
-                <FFCard
-                  top={champTop}
-                  bottom={champBottom}
-                  pickedId={picks['CHAMP']}
-                  onPick={(id) => makePick('CHAMP', id)}
-                  disabled={isLocked}
-                  label="Champion"
-                  isChamp
-                />
+                <FFCard top={champTop} bottom={champBottom} pickedId={picks['CHAMP']}
+                  onPick={(id) => makePick('CHAMP', id)} disabled={readOnly} isChamp />
               </div>
 
               {/* FF Semi 2 — Texas vs South Carolina */}
-              <div
-                className="absolute left-0 right-0 px-3"
-                style={{ top: REGION_H + REGION_GAP + REGION_H / 2 - CARD_H / 2 }}
-              >
+              <div className="absolute left-0 right-0 px-3" style={{ top: REGION_H + REGION_GAP + REGION_H/2 - CARD_H/2 }}>
                 <p className="text-[8px] text-white/25 uppercase tracking-widest text-center mb-1">
                   Final Four · {ROUND_POINTS[5]}pts
                 </p>
-                <FFCard
-                  top={ff1Top}
-                  bottom={ff1Bottom}
-                  pickedId={picks['FF_1']}
-                  onPick={(id) => makePick('FF_1', id)}
-                  disabled={isLocked}
-                  label="Semi 2"
-                />
+                <FFCard top={ff1Top} bottom={ff1Bottom} pickedId={picks['FF_1']}
+                  onPick={(id) => makePick('FF_1', id)} disabled={readOnly} />
               </div>
             </div>
           </div>
 
-          {/* ── RIGHT SIDE: UCLA (top) + Texas (bottom), mirrored ── */}
+          {/* ── RIGHT: UCLA (top) + Texas (bottom), mirrored ── */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
             <RegionBlock
-              region="UCLA"
-              dir="rtl"
-              picks={picks}
-              advanced={advanced}
-              onPick={makePick}
-              isLocked={isLocked}
+              region="UCLA" dir="rtl"
+              picks={picks} advanced={advanced} ff4Winners={ff4Winners}
+              onPick={makePick} readOnly={readOnly}
             />
             <RegionBlock
-              region="Texas"
-              dir="rtl"
-              picks={picks}
-              advanced={advanced}
-              onPick={makePick}
-              isLocked={isLocked}
+              region="Texas" dir="rtl"
+              picks={picks} advanced={advanced} ff4Winners={ff4Winners}
+              onPick={makePick} readOnly={readOnly}
             />
           </div>
-
         </div>
       </div>
     </div>
   )
 }
 
-// ── Region block (one region, 4 rounds) ──────────────────────────────
-function RegionBlock({
-  region, dir, picks, advanced, onPick, isLocked
+// ── First Four play-in card ───────────────────────────────────────────
+function FirstFourCard({
+  game, pickedId, onPick, disabled
 }: {
-  region:   Region
-  dir:      Dir
-  picks:    Record<string, number>
-  advanced: Record<string, Team | null>
-  onPick:   (key: string, id: number) => void
-  isLocked: boolean
+  game:     FirstFourGame
+  pickedId?: number
+  onPick:   (id: number) => void
+  disabled: boolean
 }) {
-  const matchups = getRegionMatchups(region)
-  // LTR: show rounds 1→4 (R1 on left, E8 on right)
-  // RTL: show rounds 4→1 (E8 on left closest to center, R1 on right)
+  const top    = getTeam(game.topTeamId)!
+  const bottom = getTeam(game.bottomTeamId)!
+  const label  = `${top.abbreviation} vs ${bottom.abbreviation}`
+
+  return (
+    <div style={{ width: CARD_W }}>
+      <p className="text-[8px] text-white/20 text-center mb-0.5 truncate">{label}</p>
+      <div className="border border-white/[0.09] rounded-lg overflow-hidden bg-[#111113]">
+        <TeamRow team={top}    picked={pickedId === top.id}    onPick={onPick} disabled={disabled} />
+        <div className="h-px bg-white/[0.07]" />
+        <TeamRow team={bottom} picked={pickedId === bottom.id} onPick={onPick} disabled={disabled} />
+      </div>
+    </div>
+  )
+}
+
+// ── Region block ──────────────────────────────────────────────────────
+function RegionBlock({
+  region, dir, picks, advanced, ff4Winners, onPick, readOnly
+}: {
+  region:     Region
+  dir:        Dir
+  picks:      Record<string, number>
+  advanced:   Record<string, Team | null>
+  ff4Winners: Record<string, Team | null>
+  onPick:     (key: string, id: number) => void
+  readOnly:   boolean
+}) {
+  const matchups   = getRegionMatchups(region)
   const roundOrder = dir === 'ltr' ? [1, 2, 3, 4] : [4, 3, 2, 1]
 
   return (
@@ -356,51 +404,58 @@ function RegionBlock({
         </span>
       </div>
 
-      {/* Round columns */}
       <div className="flex items-start">
         {roundOrder.map((round, colIdx) => {
-          const isLastCol = colIdx === roundOrder.length - 1
-          const gamesInRound = 8 >> (round - 1)
-
-          // Which round has more games for the connector between this col and next?
-          // LTR: current round (round) feeds into next (roundOrder[colIdx+1]) — source = current
-          // RTL: next round (roundOrder[colIdx+1]) feeds into current — source = next
-          const nextRound = roundOrder[colIdx + 1]
-          const connSourceRound = dir === 'ltr' ? round : (nextRound ?? round)
-          const connDir: Dir = dir
+          const isLastCol          = colIdx === roundOrder.length - 1
+          const nextRound          = roundOrder[colIdx + 1]
+          const connSourceRound    = dir === 'ltr' ? round : (nextRound ?? round)
 
           return (
             <div key={round} className="flex items-start shrink-0">
               {/* Column */}
               <div className="shrink-0" style={{ width: CARD_W }}>
-                {/* Round header */}
                 <div className="h-5 flex items-center justify-center mb-1">
                   <span className="text-[8px] font-semibold text-white/20 uppercase tracking-wider">
                     {ROUND_LABELS[round]}
                   </span>
                 </div>
-                {/* Games — absolute within fixed-height container */}
                 <div className="relative" style={{ height: REGION_H }}>
-                  {Array.from({ length: gamesInRound }, (_, gi) => {
+                  {Array.from({ length: 8 >> (round - 1) }, (_, gi) => {
                     const top = gameTopPx(round, gi)
                     const key = pickKey(region, round, gi)
 
                     if (round === 1) {
                       const m = matchups[gi]
+
+                      // Resolve FF4 teams — if a team is a First Four placeholder,
+                      // swap in the winner of that play-in game (or null if not picked)
+                      const ff4GameTop = m.top.isFirstFour
+                        ? getFirstFourGame(region, m.top.seed) : null
+                      const ff4GameBot = m.bottom.isFirstFour
+                        ? getFirstFourGame(region, m.bottom.seed) : null
+
+                      const topTeam = ff4GameTop
+                        ? (ff4Winners[ff4GameTop.key] ?? null)
+                        : m.top
+                      const botTeam = ff4GameBot
+                        ? (ff4Winners[ff4GameBot.key] ?? null)
+                        : m.bottom
+
                       return (
                         <div key={gi} className="absolute inset-x-0" style={{ top }}>
-                          <GameCard
-                            top={m.top}
-                            bottom={m.bottom}
+                          <R1Card
+                            top={topTeam}
+                            bottom={botTeam}
+                            topIsFF={!!ff4GameTop && !topTeam}
+                            botIsFF={!!ff4GameBot && !botTeam}
                             pickedId={picks[key]}
                             onPick={(id) => onPick(key, id)}
-                            disabled={isLocked}
+                            disabled={readOnly}
                           />
                         </div>
                       )
                     }
 
-                    // Rounds 2–4: teams come from prior picks
                     const topKey = pickKey(region, round - 1, gi * 2)
                     const botKey = pickKey(region, round - 1, gi * 2 + 1)
                     const topTeam = advanced[topKey] ?? null
@@ -409,11 +464,10 @@ function RegionBlock({
                     return (
                       <div key={gi} className="absolute inset-x-0" style={{ top }}>
                         <AdvanceCard
-                          top={topTeam}
-                          bottom={botTeam}
+                          top={topTeam} bottom={botTeam}
                           pickedId={picks[key]}
                           onPick={(id) => onPick(key, id)}
-                          disabled={isLocked}
+                          disabled={readOnly}
                           round={round}
                         />
                       </div>
@@ -422,13 +476,10 @@ function RegionBlock({
                 </div>
               </div>
 
-              {/* Connector SVG between this column and the next */}
+              {/* Connector SVG */}
               {!isLastCol && (
                 <div className="shrink-0 mt-6" style={{ width: CONN_W, height: REGION_H }}>
-                  <BracketConnectors
-                    sourceRound={connSourceRound}
-                    dir={connDir}
-                  />
+                  <BracketConnectors sourceRound={connSourceRound} dir={dir} />
                 </div>
               )}
             </div>
@@ -444,25 +495,20 @@ function BracketConnectors({ sourceRound, dir }: { sourceRound: number; dir: Dir
   const gamesInRound = 8 >> (sourceRound - 1)
   const stroke = 'rgba(255,255,255,0.09)'
   const lines: React.ReactNode[] = []
-
-  const srcX  = dir === 'ltr' ? 0       : CONN_W     // side where source games exit
-  const destX = dir === 'ltr' ? CONN_W  : 0           // side where destination game enters
+  const srcX  = dir === 'ltr' ? 0      : CONN_W
+  const destX = dir === 'ltr' ? CONN_W : 0
   const pivX  = CONN_W / 2
 
   for (let gi = 0; gi < gamesInRound; gi += 2) {
-    const topCenterY = gameTopPx(sourceRound, gi)     + CARD_H / 2
-    const botCenterY = gameTopPx(sourceRound, gi + 1) + CARD_H / 2
-    const midY       = (topCenterY + botCenterY) / 2
+    const topY = gameTopPx(sourceRound, gi)     + CARD_H / 2
+    const botY = gameTopPx(sourceRound, gi + 1) + CARD_H / 2
+    const midY = (topY + botY) / 2
 
     lines.push(
       <g key={gi}>
-        {/* Horizontal from top source game to pivot */}
-        <line x1={srcX} y1={topCenterY} x2={pivX} y2={topCenterY} stroke={stroke} strokeWidth={1} />
-        {/* Horizontal from bottom source game to pivot */}
-        <line x1={srcX} y1={botCenterY} x2={pivX} y2={botCenterY} stroke={stroke} strokeWidth={1} />
-        {/* Vertical joining them */}
-        <line x1={pivX} y1={topCenterY} x2={pivX} y2={botCenterY} stroke={stroke} strokeWidth={1} />
-        {/* Horizontal to destination */}
+        <line x1={srcX} y1={topY} x2={pivX} y2={topY} stroke={stroke} strokeWidth={1} />
+        <line x1={srcX} y1={botY} x2={pivX} y2={botY} stroke={stroke} strokeWidth={1} />
+        <line x1={pivX} y1={topY} x2={pivX} y2={botY} stroke={stroke} strokeWidth={1} />
         <line x1={pivX} y1={midY} x2={destX} y2={midY} stroke={stroke} strokeWidth={1} />
       </g>
     )
@@ -475,26 +521,34 @@ function BracketConnectors({ sourceRound, dir }: { sourceRound: number; dir: Dir
   )
 }
 
-// ── R1 game card (both teams known) ──────────────────────────────────
-function GameCard({
-  top, bottom, pickedId, onPick, disabled
+// ── R1 card — handles FF4 pending slots ──────────────────────────────
+function R1Card({
+  top, bottom, topIsFF, botIsFF, pickedId, onPick, disabled
 }: {
-  top:      Team
-  bottom:   Team
+  top:      Team | null
+  bottom:   Team | null
+  topIsFF:  boolean     // top slot is FF4 but not picked yet
+  botIsFF:  boolean     // bottom slot is FF4 but not picked yet
   pickedId?: number
   onPick:   (id: number) => void
   disabled: boolean
 }) {
   return (
     <div className="border border-white/[0.09] rounded-lg overflow-hidden bg-[#111113]">
-      <TeamRow team={top}    picked={pickedId === top?.id}    onPick={onPick} disabled={disabled} />
+      {top
+        ? <TeamRow team={top}    picked={pickedId === top.id}    onPick={onPick} disabled={disabled} />
+        : <FFPendingRow label={topIsFF ? 'Pick First Four winner ↑' : 'TBD'} />
+      }
       <div className="h-px bg-white/[0.07]" />
-      <TeamRow team={bottom} picked={pickedId === bottom?.id} onPick={onPick} disabled={disabled} />
+      {bottom
+        ? <TeamRow team={bottom} picked={pickedId === bottom.id} onPick={onPick} disabled={disabled} />
+        : <FFPendingRow label={botIsFF ? 'Pick First Four winner ↑' : 'TBD'} />
+      }
     </div>
   )
 }
 
-// ── Advance card (R2+ — teams from prior picks) ───────────────────────
+// ── Advance card (R2+) ────────────────────────────────────────────────
 function AdvanceCard({
   top, bottom, pickedId, onPick, disabled, round
 }: {
@@ -511,9 +565,7 @@ function AdvanceCard({
         className="border border-white/[0.05] rounded-lg bg-[#0d0d0f] flex items-center justify-center opacity-40"
         style={{ height: CARD_H }}
       >
-        <span className="text-[8px] text-white/20 uppercase tracking-wider">
-          R{round - 1} picks needed
-        </span>
+        <span className="text-[8px] text-white/20 uppercase tracking-wider">R{round - 1} picks needed</span>
       </div>
     )
   }
@@ -528,48 +580,35 @@ function AdvanceCard({
 
 // ── Final Four / Championship card ────────────────────────────────────
 function FFCard({
-  top, bottom, pickedId, onPick, disabled, label, isChamp
+  top, bottom, pickedId, onPick, disabled, isChamp
 }: {
   top:      Team | null
   bottom:   Team | null
   pickedId?: number
   onPick:   (id: number) => void
   disabled: boolean
-  label:    string
   isChamp?: boolean
 }) {
-  const borderColor = isChamp ? 'border-[#d4a017]/30' : 'border-white/[0.09]'
-  const bg = isChamp ? 'bg-[#d4a017]/5' : 'bg-[#111113]'
+  const border = isChamp ? 'border-[#d4a017]/30' : 'border-white/[0.09]'
+  const bg     = isChamp ? 'bg-[#d4a017]/5'      : 'bg-[#111113]'
 
   if (!top && !bottom) {
     return (
-      <div
-        className={`border ${borderColor} rounded-lg flex items-center justify-center ${bg}`}
-        style={{ height: CARD_H }}
-      >
-        {isChamp
-          ? <span className="text-xl">🏆</span>
-          : <span className="text-[9px] text-white/20 text-center px-2">Complete regions first</span>
-        }
+      <div className={`border ${border} rounded-lg flex items-center justify-center ${bg}`} style={{ height: CARD_H }}>
+        {isChamp ? <span className="text-xl">🏆</span> : <span className="text-[9px] text-white/20 text-center px-2">Complete regions first</span>}
       </div>
     )
   }
   return (
-    <div className={`border ${borderColor} rounded-lg overflow-hidden ${bg}`}>
-      {top
-        ? <TeamRow team={top}    picked={pickedId === top.id}    onPick={onPick} disabled={disabled} compact />
-        : <EmptyRow />
-      }
+    <div className={`border ${border} rounded-lg overflow-hidden ${bg}`}>
+      {top    ? <TeamRow team={top}    picked={pickedId === top.id}    onPick={onPick} disabled={disabled} compact /> : <EmptyRow />}
       <div className="h-px bg-white/[0.07]" />
-      {bottom
-        ? <TeamRow team={bottom} picked={pickedId === bottom.id} onPick={onPick} disabled={disabled} compact />
-        : <EmptyRow />
-      }
+      {bottom ? <TeamRow team={bottom} picked={pickedId === bottom.id} onPick={onPick} disabled={disabled} compact /> : <EmptyRow />}
     </div>
   )
 }
 
-// ── Single team row ───────────────────────────────────────────────────
+// ── Team row ──────────────────────────────────────────────────────────
 function TeamRow({
   team, picked, onPick, disabled, compact
 }: {
@@ -579,24 +618,24 @@ function TeamRow({
   disabled: boolean
   compact?: boolean
 }) {
-  const rowH = (CARD_H - 1) / 2  // ~27px
+  const rowH = (CARD_H - 1) / 2
 
   return (
     <button
       onClick={() => !disabled && onPick(team.id)}
       disabled={disabled}
       className={`w-full flex items-center gap-1.5 px-2 transition-all text-left
-        ${picked    ? 'bg-[#d4a017]/15' : 'hover:bg-white/[0.04]'}
-        ${disabled  ? 'cursor-default'  : 'cursor-pointer'}`}
+        ${picked   ? 'bg-[#d4a017]/15' : 'hover:bg-white/[0.04]'}
+        ${disabled ? 'cursor-default'  : 'cursor-pointer'}`}
       style={{ height: rowH }}
     >
       <span className={`text-[9px] font-bold w-4 shrink-0 text-right
         ${team.seed <= 3 ? 'text-[#d4a017]' : 'text-white/25'}`}>
         {team.seed}
       </span>
-      <span className={`text-[10px] truncate flex-1 leading-none
-        ${picked ? 'text-white font-bold' : 'text-white/55'}
-        ${compact ? 'text-[9px]' : ''}`}>
+      <span className={`truncate flex-1 leading-none
+        ${picked  ? 'text-white font-bold' : 'text-white/55'}
+        ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
         {team.abbreviation}
         {team.isFirstFour && <span className="text-white/20 text-[7px] ml-0.5">FF</span>}
       </span>
@@ -606,10 +645,17 @@ function TeamRow({
 }
 
 function EmptyRow() {
-  const rowH = (CARD_H - 1) / 2
   return (
-    <div className="flex items-center px-2" style={{ height: rowH }}>
+    <div className="flex items-center px-2" style={{ height: (CARD_H - 1) / 2 }}>
       <span className="text-[9px] text-white/15">TBD</span>
+    </div>
+  )
+}
+
+function FFPendingRow({ label }: { label: string }) {
+  return (
+    <div className="flex items-center px-2" style={{ height: (CARD_H - 1) / 2 }}>
+      <span className="text-[8px] text-[#d4a017]/40 italic truncate">{label}</span>
     </div>
   )
 }

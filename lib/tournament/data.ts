@@ -180,3 +180,23 @@ export function pickKey(region: Region, round: number, game: number): string {
   const ri = REGIONS.indexOf(region)
   return `R${ri}_${round}_${game}`
 }
+
+// ── First Four play-in games ──────────────────────────────────────────
+export interface FirstFourGame {
+  key: string
+  topTeamId: number
+  bottomTeamId: number
+  region: Region
+  seed: number    // which seed slot this winner fills in R1
+}
+
+export const FIRST_FOUR: FirstFourGame[] = [
+  { key: 'FF4_NEB_RICH', topTeamId: 26, bottomTeamId: 27, region: 'UCLA',           seed: 11 },
+  { key: 'FF4_MST_SFA',  topTeamId: 35, bottomTeamId: 36, region: 'Texas',           seed: 16 },
+  { key: 'FF4_SOU_SAM',  topTeamId: 52, bottomTeamId: 53, region: 'South Carolina',  seed: 16 },
+  { key: 'FF4_UVA_ASU',  topTeamId: 65, bottomTeamId: 66, region: 'South Carolina',  seed: 10 },
+]
+
+export function getFirstFourGame(region: Region, seed: number): FirstFourGame | null {
+  return FIRST_FOUR.find(f => f.region === region && f.seed === seed) ?? null
+}
