@@ -58,7 +58,7 @@ export async function GET() {
     const responses = await Promise.all(
       TOURNAMENT_DATES.map(date =>
         fetch(`${ESPN_BASE}?groups=100&dates=${date}`, {
-          next: { revalidate: 30 }, // cache 30s
+          cache: 'no-store',
         }).then(r => r.json()).catch(() => ({ events: [] }))
       )
     )
