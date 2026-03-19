@@ -290,11 +290,10 @@ export default function Home() {
               <motion.div
                 key={f.title}
                 variants={fadeUp}
-                whileHover={{ y: -6, transition: { duration: 0.2 } }}
               >
                 <Link
                   href={f.href}
-                  className={`group relative bg-[#111113] border border-white/[0.07] rounded-3xl p-6 ${f.border} transition-colors duration-300 cursor-pointer overflow-hidden flex flex-col h-full`}
+                  className={`group relative bg-[#111113] border border-white/[0.07] rounded-3xl p-6 ${f.border} transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full hover:-translate-y-1.5`}
                 >
                   {/* Card glow on hover */}
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-3xl"
