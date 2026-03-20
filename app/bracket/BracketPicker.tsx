@@ -45,10 +45,10 @@ const ROUND_DATES: Record<number, string> = {
 }
 
 const MOBILE_TABS: Array<{ key: Region | 'ff'; label: string }> = [
-  { key: 'UConn',          label: 'UConn' },
-  { key: 'UCLA',           label: 'UCLA' },
-  { key: 'Texas',          label: 'Texas' },
-  { key: 'South Carolina', label: 'S. Car.' },
+  { key: 'UConn',          label: 'UConn Region' },
+  { key: 'UCLA',           label: 'UCLA Region' },
+  { key: 'Texas',          label: 'Texas Region' },
+  { key: 'South Carolina', label: 'S. Car. Region' },
   { key: 'ff',             label: '🏆 FF' },
 ]
 
