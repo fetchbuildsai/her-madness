@@ -288,10 +288,10 @@ export default function BracketPicker({
                 Reset
               </button>
             )}
-            {!isSubmitted && !isLocked && bracketPickCount === totalGames && (
+            {!isLocked && bracketPickCount === totalGames && (
               <button onClick={() => setConfirm(true)}
                 className="px-3 py-1.5 text-xs font-bold bg-[#d4a017] text-black rounded-lg hover:bg-[#f0c040] transition-colors">
-                Submit
+                {isSubmitted ? 'Re-submit' : 'Submit'}
               </button>
             )}
           </div>
