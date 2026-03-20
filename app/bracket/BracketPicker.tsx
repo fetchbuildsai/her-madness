@@ -102,7 +102,7 @@ export default function BracketPicker({
   const saveTimer   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const mountedRef  = useRef(false)
 
-  const readOnly          = isLocked || isSubmitted
+  const readOnly          = isLocked
   const bracketPickCount  = Object.entries(picks).filter(([k, v]) => {
     if (!v) return false
     const isFirstFour = FIRST_FOUR.some(f => f.key === k)
@@ -254,7 +254,7 @@ export default function BracketPicker({
             <h1 className="text-sm font-black text-white">{username}&apos;s Bracket</h1>
             <p className="text-[11px] text-white/30">
               {isLocked ? '🔒 Locked — tournament underway'
-                : isSubmitted ? '✓ Submitted — good luck!'
+                : isSubmitted ? '✓ Submitted — changes allowed until 11:30 AM ET'
                 : 'Locks Friday, March 20 at 11:00 AM ET'}
             </p>
           </div>

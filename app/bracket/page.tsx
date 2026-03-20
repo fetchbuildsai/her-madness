@@ -19,8 +19,8 @@ export default async function BracketPage() {
     supabase.from('brackets').select('picks'),
   ])
 
-  // Auto-lock at March 20, 2026 11:00 AM EDT (15:00 UTC)
-  const LOCK_TIME = new Date('2026-03-20T15:00:00Z')
+  // Auto-lock at March 20, 2026 11:30 AM EDT (15:30 UTC)
+  const LOCK_TIME = new Date('2026-03-20T15:30:00Z')
   const isLocked  = !!bracket?.locked_at || new Date() >= LOCK_TIME
 
   // Compute pick statistics — how many users picked each team per slot
