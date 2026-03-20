@@ -146,7 +146,7 @@ export default function Home() {
               animate={{ y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              <h1 className="text-[clamp(5rem,18vw,10rem)] font-black tracking-tight leading-none"
+              <h1 className="text-[clamp(2.5rem,18vw,10rem)] font-black tracking-tight leading-none"
                 style={{
                   background: 'linear-gradient(135deg, #f0c040 0%, #d4a017 45%, #a07810 100%)',
                   WebkitBackgroundClip: 'text',
@@ -163,7 +163,7 @@ export default function Home() {
               animate={{ y: 0 }}
               transition={{ duration: 0.7, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
             >
-              <h1 className="text-[clamp(5rem,18vw,10rem)] font-black tracking-tight leading-none text-white">
+              <h1 className="text-[clamp(2.5rem,18vw,10rem)] font-black tracking-tight leading-none text-white">
                 MADNESS
               </h1>
             </motion.div>

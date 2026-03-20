@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
-      <body className={`${inter.variable} font-sans antialiased bg-[#09090b] text-[#fafafa]`}>
+      <body className={`${inter.variable} font-sans antialiased bg-[#09090b] text-[#fafafa] overflow-x-hidden`}>
         {children}
       </body>
     </html>

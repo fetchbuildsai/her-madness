@@ -144,11 +144,11 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] flex flex-col">
+    <div className="h-[100dvh] bg-[#09090b] flex flex-col overflow-hidden">
       <AppNav username={currentUser?.username} />
 
       {/* Header */}
-      <div className="pt-14 border-b border-white/[0.07] px-4 py-3 bg-[#09090b] sticky top-14 z-10">
+      <div className="pt-24 sm:pt-14 border-b border-white/[0.07] px-4 py-3 bg-[#09090b] sticky top-24 sm:top-14 z-10">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-base font-black text-white">Community</h1>
@@ -213,7 +213,7 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
       </div>
 
       {/* Input */}
-      <div className="border-t border-white/[0.07] px-4 py-3 bg-[#09090b]">
+      <div className="border-t border-white/[0.07] px-4 py-3 pb-safe bg-[#09090b]">
         <div className="max-w-2xl mx-auto">
           {currentUser ? (
             <form onSubmit={sendMessage} className="flex gap-2">
