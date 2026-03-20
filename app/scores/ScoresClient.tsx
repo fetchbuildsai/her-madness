@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import AppNav from '@/components/AppNav'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ function TeamLogo({ logo, name, size = 26 }: { logo: string | null; name: string
 
 // ─── Game card ───────────────────────────────────────────────────
 function GameCard({ game }: { game: ESPNGame }) {
+  const showChat = game.round >= 2
   const isLive  = game.status === 'live'
   const isFinal = game.status === 'final'
   // ESPN: away = top team in bracket display, home = bottom
@@ -180,6 +182,20 @@ function GameCard({ game }: { game: ESPNGame }) {
           </div>
         ))}
       </div>
+
+      {/* Game chat link — Round 2+ only */}
+      {showChat && (
+        <div className="px-3 pb-2.5 pt-1 border-t border-white/[0.05] mt-1">
+          <Link
+            href={`/community/game/${game.id}?name=${encodeURIComponent(game.shortName)}&round=${game.round}`}
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-white/30 hover:text-[#d4a017] transition-colors"
+          >
+            <span>💬</span>
+            <span>Game Chat</span>
+            {isLive && <span className="ml-auto text-[9px] text-[#d4a017] font-bold uppercase tracking-wide animate-pulse">Live</span>}
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
