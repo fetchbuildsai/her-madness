@@ -16,7 +16,7 @@ export default async function CommunityPage() {
   const { data: messages } = await supabase
     .from('messages')
     .select(`
-      id, content, created_at,
+      id, content, created_at, reply_to_id, reply_to_content, reply_to_username,
       profiles:user_id (id, username, display_name, avatar_url, instagram, threads, twitter)
     `)
     .is('game_id', null)

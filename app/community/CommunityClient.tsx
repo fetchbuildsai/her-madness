@@ -21,12 +21,24 @@ interface Message {
   content: string
   created_at: string
   profiles: MsgProfile
+  reply_to_id?: string | null
+  reply_to_content?: string | null
+  reply_to_username?: string | null
+}
+
+interface Reaction {
+  id: string
+  message_id: string
+  user_id: string
+  emoji: string
 }
 
 interface Props {
   currentUser: MsgProfile | null
   initialMessages: Message[]
 }
+
+const REACTION_EMOJIS = ['🏀', '❤️', '🔥', '😂']
 
 // ─── Helpers ─────────────────────────────────────────────────────
 function formatTime(iso: string): string {
@@ -81,40 +93,86 @@ function SocialBadge({ profile }: { profile: MsgProfile }) {
 
 // ─── Main component ──────────────────────────────────────────────
 export default function CommunityClient({ currentUser, initialMessages }: Props) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
-  const [input, setInput]       = useState('')
-  const [sending, setSending]   = useState(false)
-  const bottomRef               = useRef<HTMLDivElement>(null)
+  const [messages, setMessages]     = useState<Message[]>(initialMessages)
+  const [reactions, setReactions]   = useState<Record<string, Reaction[]>>({})
+  const [input, setInput]           = useState('')
+  const [sending, setSending]       = useState(false)
+  const [replyTo, setReplyTo]       = useState<Message | null>(null)
+  const [showReactions, setShowReactions] = useState<string | null>(null)
+  const bottomRef                   = useRef<HTMLDivElement>(null)
+  const inputRef                    = useRef<HTMLInputElement>(null)
 
-  // Scroll to bottom on new messages
+  // Load initial reactions
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!initialMessages.length) return
+    const supabase = createClient()
+    const ids = initialMessages.map(m => m.id)
+    supabase
+      .from('message_reactions')
+      .select('*')
+      .in('message_id', ids)
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, Reaction[]> = {}
+        data.forEach(r => {
+          if (!map[r.message_id]) map[r.message_id] = []
+          map[r.message_id].push(r)
+        })
+        setReactions(map)
+      })
+  }, [initialMessages])
+
+  // Scroll to bottom on new messages only
+  const prevLenRef = useRef(initialMessages.length)
+  useEffect(() => {
+    if (messages.length > prevLenRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevLenRef.current = messages.length
   }, [messages])
 
-  // Real-time subscription
+  // Real-time: messages + reactions
   useEffect(() => {
     const supabase = createClient()
 
-    const channel = supabase
+    const msgChannel = supabase
       .channel('community-chat')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: 'game_id=is.null' },
         async (payload) => {
-          // Fetch the full message with profile
           const { data } = await supabase
             .from('messages')
-            .select(`id, content, created_at, profiles:user_id (id, username, display_name, avatar_url, instagram, threads, twitter)`)
+            .select(`id, content, created_at, reply_to_id, reply_to_content, reply_to_username, profiles:user_id (id, username, display_name, avatar_url, instagram, threads, twitter)`)
             .eq('id', payload.new.id)
             .single()
-          if (data) {
-            setMessages(prev => [...prev, data as unknown as Message])
-          }
+          if (data) setMessages(prev => [...prev, data as unknown as Message])
         }
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    const rxChannel = supabase
+      .channel('community-reactions')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions' }, (payload) => {
+        const r = payload.new as Reaction
+        setReactions(prev => ({
+          ...prev,
+          [r.message_id]: [...(prev[r.message_id] ?? []), r]
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_reactions' }, (payload) => {
+        const r = payload.old as Reaction
+        setReactions(prev => ({
+          ...prev,
+          [r.message_id]: (prev[r.message_id] ?? []).filter(x => x.id !== r.id)
+        }))
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(msgChannel)
+      supabase.removeChannel(rxChannel)
+    }
   }, [])
 
   async function sendMessage(e: React.FormEvent) {
@@ -123,14 +181,22 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
 
     setSending(true)
     const content = input.trim()
-    setInput('')
+    const replyContext = replyTo ? {
+      reply_to_id: replyTo.id,
+      reply_to_content: replyTo.content,
+      reply_to_username: replyTo.profiles?.display_name ?? replyTo.profiles?.username ?? 'someone',
+    } : {}
 
-    // Optimistic update — show message immediately
+    setInput('')
+    setReplyTo(null)
+
+    // Optimistic update
     const optimistic: Message = {
       id: `optimistic-${Date.now()}`,
       content,
       created_at: new Date().toISOString(),
       profiles: currentUser,
+      ...replyContext,
     }
     setMessages(prev => [...prev, optimistic])
 
@@ -139,8 +205,49 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
       user_id: currentUser.id,
       game_id: null,
       content,
+      ...replyContext,
     })
     setSending(false)
+  }
+
+  async function toggleReaction(messageId: string, emoji: string) {
+    if (!currentUser) return
+    const supabase = createClient()
+    const existing = (reactions[messageId] ?? []).find(
+      r => r.user_id === currentUser.id && r.emoji === emoji
+    )
+    if (existing) {
+      // Remove
+      setReactions(prev => ({
+        ...prev,
+        [messageId]: (prev[messageId] ?? []).filter(r => r.id !== existing.id)
+      }))
+      await supabase.from('message_reactions').delete().eq('id', existing.id)
+    } else {
+      // Add — optimistic
+      const optimisticRx: Reaction = {
+        id: `opt-${Date.now()}`,
+        message_id: messageId,
+        user_id: currentUser.id,
+        emoji,
+      }
+      setReactions(prev => ({
+        ...prev,
+        [messageId]: [...(prev[messageId] ?? []), optimisticRx]
+      }))
+      await supabase.from('message_reactions').insert({
+        message_id: messageId,
+        user_id: currentUser.id,
+        emoji,
+      })
+    }
+    setShowReactions(null)
+  }
+
+  function startReply(msg: Message) {
+    setReplyTo(msg)
+    setShowReactions(null)
+    inputRef.current?.focus()
   }
 
   return (
@@ -162,7 +269,7 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4" onClick={() => setShowReactions(null)}>
         <div className="max-w-2xl mx-auto space-y-4">
 
           {messages.length === 0 && (
@@ -176,6 +283,15 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
           {messages.map((msg, i) => {
             const isMe = msg.profiles?.id === currentUser?.id
             const showAvatar = i === 0 || messages[i - 1]?.profiles?.id !== msg.profiles?.id
+            const msgReactions = reactions[msg.id] ?? []
+
+            // Group reactions by emoji
+            const reactionGroups: Record<string, { count: number; iMine: boolean }> = {}
+            msgReactions.forEach(r => {
+              if (!reactionGroups[r.emoji]) reactionGroups[r.emoji] = { count: 0, iMine: false }
+              reactionGroups[r.emoji].count++
+              if (r.user_id === currentUser?.id) reactionGroups[r.emoji].iMine = true
+            })
 
             return (
               <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
@@ -185,7 +301,7 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
                   {showAvatar && msg.profiles && <Avatar profile={msg.profiles} size={32} />}
                 </div>
 
-                {/* Bubble */}
+                {/* Bubble + reactions */}
                 <div className={`flex flex-col max-w-[78%] ${isMe ? 'items-end' : 'items-start'}`}>
                   {showAvatar && msg.profiles && (
                     <div className={`flex items-center gap-1 mb-1 ${isMe ? 'flex-row-reverse' : ''}`}>
@@ -196,13 +312,87 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
                       <span className="text-[9px] text-white/20">{formatTime(msg.created_at)}</span>
                     </div>
                   )}
-                  <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                    isMe
-                      ? 'bg-[#d4a017] text-black font-medium rounded-br-sm'
-                      : 'bg-[#1c1c1f] text-white/85 rounded-bl-sm border border-white/[0.06]'
-                  }`}>
-                    {msg.content}
+
+                  {/* Reply preview */}
+                  {msg.reply_to_id && msg.reply_to_content && (
+                    <div className={`mb-1 px-2 py-1 rounded-lg border-l-2 border-[#d4a017]/50 bg-white/[0.04] max-w-full ${isMe ? 'items-end' : ''}`}>
+                      <p className="text-[10px] text-[#d4a017]/70 font-semibold mb-0.5">↩ {msg.reply_to_username}</p>
+                      <p className="text-[11px] text-white/40 truncate">{msg.reply_to_content}</p>
+                    </div>
+                  )}
+
+                  {/* Message bubble + action button */}
+                  <div className={`flex items-center gap-1.5 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div className={`relative px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                      isMe
+                        ? 'bg-[#d4a017] text-black font-medium rounded-br-sm'
+                        : 'bg-[#1c1c1f] text-white/85 rounded-bl-sm border border-white/[0.06]'
+                    }`}>
+                      {msg.content}
+                    </div>
+
+                    {/* Action button (react / reply) */}
+                    {currentUser && !msg.id.startsWith('optimistic') && (
+                      <div className="relative">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowReactions(showReactions === msg.id ? null : msg.id) }}
+                          className="text-white/20 hover:text-white/50 transition-colors text-base leading-none px-1"
+                        >
+                          ···
+                        </button>
+
+                        {/* Action popover */}
+                        {showReactions === msg.id && (
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            className={`absolute bottom-8 z-20 bg-[#1c1c1f] border border-white/10 rounded-2xl p-2 shadow-xl flex flex-col gap-1.5 ${isMe ? 'right-0' : 'left-0'}`}
+                          >
+                            {/* Emoji reactions */}
+                            <div className="flex gap-1">
+                              {REACTION_EMOJIS.map(emoji => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => toggleReaction(msg.id, emoji)}
+                                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-base transition-all hover:scale-110 ${
+                                    reactionGroups[emoji]?.iMine ? 'bg-[#d4a017]/20 border border-[#d4a017]/40' : 'hover:bg-white/10'
+                                  }`}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                            {/* Reply */}
+                            <button
+                              onClick={() => startReply(msg)}
+                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-white/60 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors"
+                            >
+                              ↩ Reply
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Reaction pills */}
+                  {Object.keys(reactionGroups).length > 0 && (
+                    <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : ''}`}>
+                      {Object.entries(reactionGroups).map(([emoji, { count, iMine }]) => (
+                        <button
+                          key={emoji}
+                          onClick={() => currentUser && toggleReaction(msg.id, emoji)}
+                          className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs transition-all ${
+                            iMine
+                              ? 'bg-[#d4a017]/20 border border-[#d4a017]/40 text-[#d4a017]'
+                              : 'bg-white/[0.06] border border-white/10 text-white/50 hover:border-white/20'
+                          }`}
+                        >
+                          <span>{emoji}</span>
+                          <span className="font-semibold">{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -216,24 +406,37 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
       <div className="border-t border-white/[0.07] px-4 py-3 pb-safe bg-[#09090b]">
         <div className="max-w-2xl mx-auto">
           {currentUser ? (
-            <form onSubmit={sendMessage} className="flex gap-2">
-              <Avatar profile={currentUser} size={32} />
-              <input
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                placeholder="Say something..."
-                maxLength={500}
-                className="flex-1 bg-[#1c1c1f] border border-white/10 rounded-full px-4 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#d4a017]/40"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || sending}
-                className="px-4 py-2 text-sm font-bold bg-[#d4a017] text-black rounded-full hover:bg-[#f0c040] transition-colors disabled:opacity-40"
-              >
-                Send
-              </button>
-            </form>
+            <div className="flex flex-col gap-2">
+              {/* Reply banner */}
+              {replyTo && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border border-white/10 rounded-xl">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[#d4a017] text-xs shrink-0">↩ {replyTo.profiles?.display_name ?? replyTo.profiles?.username}</span>
+                    <span className="text-white/30 text-xs truncate">{replyTo.content}</span>
+                  </div>
+                  <button onClick={() => setReplyTo(null)} className="text-white/30 hover:text-white/60 ml-2 shrink-0 text-lg leading-none">×</button>
+                </div>
+              )}
+              <form onSubmit={sendMessage} className="flex gap-2">
+                <Avatar profile={currentUser} size={32} />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  placeholder={replyTo ? `Reply to ${replyTo.profiles?.username}...` : 'Say something...'}
+                  maxLength={500}
+                  className="flex-1 bg-[#1c1c1f] border border-white/10 rounded-full px-4 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#d4a017]/40"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || sending}
+                  className="px-4 py-2 text-sm font-bold bg-[#d4a017] text-black rounded-full hover:bg-[#f0c040] transition-colors disabled:opacity-40"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
           ) : (
             <div className="text-center py-2">
               <Link href="/auth/login?redirectTo=/community"
