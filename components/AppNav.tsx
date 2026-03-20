@@ -9,6 +9,7 @@ interface Props {
 
 const NAV_LINKS = [
   { href: '/bracket',     label: 'Bracket' },
+  { href: '/results',     label: 'Results' },
   { href: '/scores',      label: 'Scores' },
   { href: '/leaderboard', label: 'Leaderboard' },
 ]

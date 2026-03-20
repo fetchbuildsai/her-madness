@@ -107,9 +107,9 @@ function buildResults(winners: Map<string, number>): Record<string, number> {
   }
 
   // Final Four semis
-  // FF_0: UConn (R[0]) vs Texas (R[2]) — both Fort Worth
-  // FF_1: UCLA (R[1]) vs South Carolina (R[3]) — both Sacramento
-  const ffPairs = [[0, 2], [1, 3]]
+  // FF_0: UConn (R[0]) vs South Carolina (R[3]) — R1 vs R4
+  // FF_1: UCLA (R[1]) vs Texas (R[2]) — R2 vs R3
+  const ffPairs = [[0, 3], [1, 2]]
   for (let i = 0; i < 2; i++) {
     const topId = results[pickKey(REGIONS[ffPairs[i][0]], 4, 0)] ?? null
     const botId = results[pickKey(REGIONS[ffPairs[i][1]], 4, 0)] ?? null
