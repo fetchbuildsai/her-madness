@@ -122,13 +122,24 @@ export default function CommunityClient({ currentUser, initialMessages }: Props)
     if (!input.trim() || !currentUser || sending) return
 
     setSending(true)
+    const content = input.trim()
+    setInput('')
+
+    // Optimistic update — show message immediately
+    const optimistic: Message = {
+      id: `optimistic-${Date.now()}`,
+      content,
+      created_at: new Date().toISOString(),
+      profiles: currentUser,
+    }
+    setMessages(prev => [...prev, optimistic])
+
     const supabase = createClient()
     await supabase.from('messages').insert({
       user_id: currentUser.id,
       game_id: null,
-      content: input.trim(),
+      content,
     })
-    setInput('')
     setSending(false)
   }
 
