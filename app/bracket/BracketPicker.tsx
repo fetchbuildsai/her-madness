@@ -103,7 +103,11 @@ export default function BracketPicker({
   const mountedRef  = useRef(false)
 
   const readOnly          = isLocked || isSubmitted
-  const bracketPickCount  = Object.entries(picks).filter(([k, v]) => v && !k.startsWith('FF')).length
+  const bracketPickCount  = Object.entries(picks).filter(([k, v]) => {
+    if (!v) return false
+    const isFirstFour = FIRST_FOUR.some(f => f.key === k)
+    return !isFirstFour
+  }).length
   const totalGames        = 63
   const showStats         = totalBrackets >= 3
 
