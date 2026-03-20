@@ -44,11 +44,12 @@ const ROUND_DATES: Record<number, string> = {
   4: 'Mar 30–31',
 }
 
-const MOBILE_TABS: Array<{ key: Region; label: string }> = [
-  { key: 'UConn',          label: 'UConn' },
-  { key: 'South Carolina', label: 'S. Car.' },
-  { key: 'UCLA',           label: 'UCLA' },
-  { key: 'Texas',          label: 'Texas' },
+const MOBILE_TABS: Array<{ key: Region | 'ff'; label: string }> = [
+  { key: 'UConn',          label: 'UConn Region' },
+  { key: 'UCLA',           label: 'UCLA Region' },
+  { key: 'Texas',          label: 'Texas Region' },
+  { key: 'South Carolina', label: 'S. Car. Region' },
+  { key: 'ff',             label: '🏆 FF' },
 ]
 
 // ── ESPN logo component ───────────────────────────────────────────────
@@ -97,7 +98,7 @@ export default function BracketPicker({
   const [saveState, setSaveState]   = useState<'idle' | 'saving' | 'saved'>('idle')
   const [confirmSubmit, setConfirm] = useState(false)
   const [confirmReset, setReset]    = useState(false)
-  const [mobileTab, setMobileTab]   = useState<Region>('UConn')
+  const [mobileTab, setMobileTab]   = useState<Region | 'ff'>('UConn')
   const saveTimer   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const mountedRef  = useRef(false)
 
@@ -333,75 +334,25 @@ export default function BracketPicker({
         ))}
       </div>
 
-      {/* ── Mobile layout (vertical, no horizontal scroll) ── */}
-      <div className="sm:hidden pb-4">
-        {MOBILE_TABS.map(tab => (
-          <div key={tab.key} className={mobileTab !== tab.key ? 'hidden' : ''}>
-            <MobileRegionView
-              region={tab.key}
-              picks={picks}
-              advanced={advanced}
-              ff4Winners={ff4Winners}
-              onPick={makePick}
-              readOnly={readOnly}
-              pickStats={pickStats}
-              showStats={showStats}
-            />
-          </div>
-        ))}
-
-        {/* Final Four always visible at bottom on mobile */}
-        <div className="mt-2 mx-3 rounded-2xl border border-white/[0.07] bg-[#111113] overflow-hidden">
-          <div className="px-4 pt-4 pb-2 border-b border-white/[0.05]">
-            <p className="text-[9px] font-black text-white/40 uppercase tracking-widest">🏆 Final Four + Championship</p>
-            <p className="text-[8px] text-white/20 mt-0.5">Finish all 4 regions to unlock</p>
-          </div>
-          <div className="p-3 space-y-3">
-            {/* FF Game 1 */}
-            <div>
-              <p className="text-[8px] text-white/25 mb-1 font-semibold uppercase tracking-wider">Semifinal 1 · Apr 4 · {ROUND_POINTS[5]}pts</p>
-              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                {e8Winners[0] ? <TeamRow team={e8Winners[0]} picked={picks['FF_0'] === e8Winners[0].id} onPick={(id) => makePick('FF_0', id)} disabled={readOnly} /> : <EmptyRow />}
-                <div className="h-px bg-gray-100" />
-                {e8Winners[1] ? <TeamRow team={e8Winners[1]} picked={picks['FF_0'] === e8Winners[1].id} onPick={(id) => makePick('FF_0', id)} disabled={readOnly} /> : <EmptyRow />}
-              </div>
-            </div>
-            {/* FF Game 2 */}
-            <div>
-              <p className="text-[8px] text-white/25 mb-1 font-semibold uppercase tracking-wider">Semifinal 2 · Apr 4 · {ROUND_POINTS[5]}pts</p>
-              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                {e8Winners[2] ? <TeamRow team={e8Winners[2]} picked={picks['FF_1'] === e8Winners[2].id} onPick={(id) => makePick('FF_1', id)} disabled={readOnly} /> : <EmptyRow />}
-                <div className="h-px bg-gray-100" />
-                {e8Winners[3] ? <TeamRow team={e8Winners[3]} picked={picks['FF_1'] === e8Winners[3].id} onPick={(id) => makePick('FF_1', id)} disabled={readOnly} /> : <EmptyRow />}
-              </div>
-            </div>
-            {/* Championship */}
-            <div>
-              <p className="text-[8px] text-[#d4a017]/70 mb-1 font-black uppercase tracking-wider">🏆 Championship · Apr 6 · {ROUND_POINTS[6]}pts</p>
-              <div className="border border-[#d4a017]/40 rounded-xl overflow-hidden bg-white shadow-sm">
-                {champTop    ? <TeamRow team={champTop}    picked={picks['CHAMP'] === champTop.id}    onPick={(id) => makePick('CHAMP', id)} disabled={readOnly} /> : <EmptyRow />}
-                <div className="h-px bg-gray-100" />
-                {champBottom ? <TeamRow team={champBottom} picked={picks['CHAMP'] === champBottom.id} onPick={(id) => makePick('CHAMP', id)} disabled={readOnly} /> : <EmptyRow />}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Desktop bracket scroll (hidden on mobile) ── */}
-      <div className="hidden sm:block overflow-x-auto pb-12 pt-4">
+      {/* ── Main bracket scroll ── */}
+      <div className="overflow-x-auto pb-12 pt-4">
         <div className="flex items-start px-6"
           style={{ minWidth: (CARD_W + CONN_W) * 4 * 2 + 200 + 48 }}>
 
           {/* Left side: UConn + South Carolina */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
             {(['UConn', 'South Carolina'] as Region[]).map(r => (
-              <RegionBlock key={r} region={r} dir="ltr" {...sharedRegionProps} />
+              <div key={r} className={mobileTab !== r ? 'hidden sm:block' : ''}>
+                <RegionBlock region={r} dir="ltr" {...sharedRegionProps} />
+              </div>
             ))}
           </div>
 
           {/* Center: Final Four + Championship */}
-          <div className="shrink-0 relative" style={{ width: 200, height: totalH + 32 }}>
+          <div
+            className={`shrink-0 relative ${mobileTab !== 'ff' ? 'hidden sm:block' : ''}`}
+            style={{ width: 200, height: totalH + 32 }}
+          >
             <div style={{ height: 32 }} />
             <div className="relative" style={{ height: totalH }}>
               <svg width={200} height={totalH} className="absolute inset-0 pointer-events-none">
@@ -438,91 +389,14 @@ export default function BracketPicker({
           {/* Right side: UCLA + Texas (mirrored) */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
             {(['UCLA', 'Texas'] as Region[]).map(r => (
-              <RegionBlock key={r} region={r} dir="rtl" {...sharedRegionProps} />
+              <div key={r} className={mobileTab !== r ? 'hidden sm:block' : ''}>
+                <RegionBlock region={r} dir="rtl" {...sharedRegionProps} />
+              </div>
             ))}
           </div>
 
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Mobile region view (vertical, round-by-round) ────────────────────
-function MobileRegionView({ region, picks, advanced, ff4Winners, onPick, readOnly, pickStats, showStats }: {
-  region: Region; picks: Record<string, number>
-  advanced: Record<string, Team | null>; ff4Winners: Record<string, Team | null>
-  onPick: (key: string, id: number) => void; readOnly: boolean
-  pickStats: Record<string, Record<number, number>>; showStats: boolean
-}) {
-  const matchups = getRegionMatchups(region)
-
-  return (
-    <div className="px-3 py-4 space-y-5">
-      <div className="flex items-center gap-2">
-        <div className="w-1 h-3.5 rounded-full bg-[#d4a017]" />
-        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">{region} Region</span>
-      </div>
-
-      {[1, 2, 3, 4].map(round => {
-        const gamesInRound = 8 >> (round - 1)
-        return (
-          <div key={round}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[9px] font-black text-white/35 uppercase tracking-widest">{ROUND_LABELS[round]}</span>
-              <span className="text-[8px] text-white/20">{ROUND_DATES[round]}</span>
-              <span className="text-[8px] text-[#d4a017]/50">{ROUND_POINTS[round]}pts</span>
-            </div>
-            <div className={`grid gap-2 ${gamesInRound >= 4 ? 'grid-cols-2' : gamesInRound === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {Array.from({ length: gamesInRound }, (_, gi) => {
-                const key = pickKey(region, round, gi)
-                const slotStats = pickStats[key] ?? {}
-                const slotTotal = Object.values(slotStats).reduce((a, b) => a + b, 0)
-
-                let topTeam: Team | null = null
-                let botTeam: Team | null = null
-
-                if (round === 1) {
-                  const m = matchups[gi]
-                  const ff4T = m.top.isFirstFour ? getFirstFourGame(region, m.top.seed) : null
-                  const ff4B = m.bottom.isFirstFour ? getFirstFourGame(region, m.bottom.seed) : null
-                  topTeam = ff4T ? (ff4Winners[ff4T.key] ?? null) : m.top
-                  botTeam = ff4B ? (ff4Winners[ff4B.key] ?? null) : m.bottom
-                } else {
-                  topTeam = advanced[pickKey(region, round - 1, gi * 2)] ?? null
-                  botTeam = advanced[pickKey(region, round - 1, gi * 2 + 1)] ?? null
-                }
-
-                const winProb = topTeam && botTeam ? getMatchupWinProb(topTeam.seed, botTeam.seed) : null
-
-                if (round > 1 && !topTeam && !botTeam) {
-                  return (
-                    <div key={gi} className="border border-white/[0.06] rounded-xl flex items-center justify-center opacity-30" style={{ height: CARD_H, background: '#111113' }}>
-                      <span className="text-[8px] text-white/30 uppercase tracking-wider">Pending</span>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={gi} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                    {topTeam
-                      ? <TeamRow team={topTeam} picked={picks[key] === topTeam.id} onPick={(id) => onPick(key, id)} disabled={readOnly}
-                          winProb={winProb ?? undefined}
-                          pickPct={showStats && slotTotal > 0 ? Math.round((slotStats[topTeam.id] ?? 0) / slotTotal * 100) : undefined} />
-                      : <FFPendingRow label="Pick First Four ↑" />}
-                    <div className="h-px bg-gray-100" />
-                    {botTeam
-                      ? <TeamRow team={botTeam} picked={picks[key] === botTeam.id} onPick={(id) => onPick(key, id)} disabled={readOnly}
-                          winProb={winProb != null ? 100 - winProb : undefined}
-                          pickPct={showStats && slotTotal > 0 ? Math.round((slotStats[botTeam.id] ?? 0) / slotTotal * 100) : undefined} />
-                      : <FFPendingRow label="TBD" />}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
