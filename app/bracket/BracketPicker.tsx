@@ -254,8 +254,8 @@ export default function BracketPicker({
             <h1 className="text-sm font-black text-white">{username}&apos;s Bracket</h1>
             <p className="text-[11px] text-white/30">
               {isLocked ? '🔒 Locked — tournament underway'
-                : isSubmitted ? '✓ Submitted — changes allowed until 11:30 AM ET'
-                : 'Locks Friday, March 20 at 11:00 AM ET'}
+                : isSubmitted ? '✓ Submitted — changes allowed until 12:00 PM ET'
+                : 'Locks Friday, March 20 at 12:00 PM ET'}
             </p>
           </div>
           <div className="flex items-center gap-2">
