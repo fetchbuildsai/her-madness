@@ -339,9 +339,9 @@ export default function BracketPicker({
         <div className="flex items-start px-6"
           style={{ minWidth: (CARD_W + CONN_W) * 4 * 2 + 200 + 48 }}>
 
-          {/* Left side: UConn + South Carolina */}
+          {/* Left side: UConn + Texas (both Fort Worth — face each other in FF) */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
-            {(['UConn', 'South Carolina'] as Region[]).map(r => (
+            {(['UConn', 'Texas'] as Region[]).map(r => (
               <div key={r} className={mobileTab !== r ? 'hidden sm:block' : ''}>
                 <RegionBlock region={r} dir="ltr" {...sharedRegionProps} />
               </div>
@@ -366,9 +366,10 @@ export default function BracketPicker({
                 ))}
               </svg>
 
+              {/* FF_0: UConn (e8Winners[0]) vs Texas (e8Winners[2]) */}
               <CenterCard y={REGION_H / 2} label={`Final Four · ${ROUND_POINTS[5]}pts`}
                 date="Apr 4"
-                top={e8Winners[0]} bottom={e8Winners[1]}
+                top={e8Winners[0]} bottom={e8Winners[2]}
                 pickedId={picks['FF_0']} onPick={(id) => makePick('FF_0', id)} disabled={readOnly}
                 pickStats={pickStats['FF_0']} showStats={showStats} />
 
@@ -378,17 +379,18 @@ export default function BracketPicker({
                 pickedId={picks['CHAMP']} onPick={(id) => makePick('CHAMP', id)} disabled={readOnly}
                 pickStats={pickStats['CHAMP']} showStats={showStats} />
 
+              {/* FF_1: UCLA (e8Winners[1]) vs South Carolina (e8Winners[3]) */}
               <CenterCard y={REGION_H + REGION_GAP + REGION_H / 2} label={`Final Four · ${ROUND_POINTS[5]}pts`}
                 date="Apr 4"
-                top={e8Winners[2]} bottom={e8Winners[3]}
+                top={e8Winners[1]} bottom={e8Winners[3]}
                 pickedId={picks['FF_1']} onPick={(id) => makePick('FF_1', id)} disabled={readOnly}
                 pickStats={pickStats['FF_1']} showStats={showStats} />
             </div>
           </div>
 
-          {/* Right side: UCLA + Texas (mirrored) */}
+          {/* Right side: UCLA + South Carolina (both Sacramento — face each other in FF) */}
           <div className="flex flex-col shrink-0" style={{ gap: REGION_GAP }}>
-            {(['UCLA', 'Texas'] as Region[]).map(r => (
+            {(['UCLA', 'South Carolina'] as Region[]).map(r => (
               <div key={r} className={mobileTab !== r ? 'hidden sm:block' : ''}>
                 <RegionBlock region={r} dir="rtl" {...sharedRegionProps} />
               </div>
