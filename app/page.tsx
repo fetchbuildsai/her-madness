@@ -3,7 +3,9 @@
 import Link from "next/link"
 import { motion, type Variants } from "framer-motion"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import AddToCalendarButton from "@/components/AddToCalendarButton"
+import { createClient } from "@/lib/supabase/client"
 
 // Animated counter hook
 function useCounter(target: number, duration = 1500) {
@@ -66,6 +68,14 @@ const fadeUp: Variants = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y:
 export default function Home() {
   const teams = useCounter(68)
   const games = useCounter(63)
+  const router = useRouter()
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace('/leaderboard')
+    })
+  }, [router])
 
   return (
     <div className="min-h-screen bg-[#09090b] overflow-x-hidden">
