@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { signIn, signInWithGoogle } from "../actions"
+import { signIn } from "../actions"
+import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +22,13 @@ export default function LoginPage() {
 
   async function handleGoogle() {
     setGoogleLoading(true)
-    await signInWithGoogle()
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
   }
 
   return (
