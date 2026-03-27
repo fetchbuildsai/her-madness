@@ -15,15 +15,18 @@ export default function AdminScoresPage() {
   const [results,    setResults]   = useState<Record<string, number>>({})
   const [saving,     setSaving]    = useState(false)
   const [recalcing,  setRecalc]    = useState(false)
+  const [syncing,    setSyncing]   = useState(false)
   const [status,     setStatus]    = useState<string | null>(null)
   const [updatedAt,  setUpdatedAt] = useState<string | null>(null)
 
-  useEffect(() => {
+  function loadResults() {
     fetch('/api/admin/results')
       .then(r => r.json())
       .then(d => { setResults(d.picks ?? {}); setUpdatedAt(d.updated_at) })
       .catch(() => {})
-  }, [])
+  }
+
+  useEffect(() => { loadResults() }, [])
 
   const pickWinner = useCallback((key: string, id: number) => {
     setResults(prev => ({ ...prev, [key]: id }))
@@ -45,6 +48,19 @@ export default function AdminScoresPage() {
     const d   = await res.json()
     setRecalc(false)
     flash(res.ok ? `✓ Scores updated for ${d.updated} brackets` : `✗ ${d.error}`)
+  }
+
+  async function syncFromESPN() {
+    setSyncing(true); setStatus(null)
+    const res = await fetch('/api/admin/sync', { method: 'POST' })
+    const d   = await res.json()
+    setSyncing(false)
+    if (res.ok) {
+      flash(`✓ Synced ${d.resultsRecorded} results, updated ${d.bracketsUpdated} brackets`)
+      loadResults()
+    } else {
+      flash(`✗ ${d.error}`)
+    }
   }
 
   function flash(msg: string) {
@@ -69,6 +85,10 @@ export default function AdminScoresPage() {
               {status}
             </span>
           )}
+          <button onClick={syncFromESPN} disabled={syncing}
+            className="px-4 py-1.5 text-xs font-bold border border-green-500/40 text-green-400 rounded-lg hover:bg-green-500/10 transition-colors disabled:opacity-40">
+            {syncing ? 'Syncing…' : '🏀 Auto-Sync ESPN'}
+          </button>
           <button onClick={saveResults} disabled={saving}
             className="px-4 py-1.5 text-xs font-bold border border-[#d4a017]/40 text-[#d4a017] rounded-lg hover:bg-[#d4a017]/10 transition-colors disabled:opacity-40">
             {saving ? 'Saving…' : `Save (${resultCount} results)`}
